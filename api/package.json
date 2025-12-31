@@ -5,14 +5,23 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "db:up": "docker compose -f ../docker-compose.yml up -d db",
+    "db:down": "docker compose -f ../docker-compose.yml down",
+    "db:migrate": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase update",
+    "db:rollback": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase rollback-count 1",
+    "db:status": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase status",
+    "db:generate-changelog": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase generate-changelog --changelog-file=db/changelog/changes/auto-generated-changelog.xml"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "liquibase": "^4.28.1",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

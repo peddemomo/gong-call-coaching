@@ -15,7 +15,7 @@ app.use(
 app.use(express.json());
 
 app.get("/", (req: Request, res: Response) => {
-  res.json({ message: "Hello from Gong Call Coaching API!" });
+  res.json({ message: "Hello from Gong Call Coaching API! BLAH!" });
 });
 
 app.listen(PORT, () => {

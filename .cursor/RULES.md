@@ -60,6 +60,20 @@ You are a professional software engineer. Your code should be:
 - Handle database transactions properly
 - Consider data consistency and race conditions
 
+### Database Migrations with Liquibase
+- **Always use Liquibase for schema changes** - never modify the database schema directly
+- **Use XML format for changelog structure** - keep the XML structure for changeset tracking
+- **One changeset per logical change** - group related changes together, but separate unrelated changes
+- **Use descriptive changeset IDs** - format: `XXX-descriptive-name` (e.g., `001-initial-schema`, `002-add-user-roles`)
+- **Always include author** - use your name/username in the author field
+- **Never modify existing changesets** - once a changeset is applied, create a new one for changes
+- **Test migrations** - always test migrations on a development database before applying to production
+- **Include rollback strategies** - consider how to rollback changes if needed
+- **Keep migrations small and focused** - large migrations are harder to review and debug
+- **Update master.xml** - always include new changelog files in `db/changelog/master.xml`
+- **Use transactions** - Liquibase runs each changeset in a transaction by default
+- **Version control migrations** - all migration files must be committed to version control
+
 ## Security
 
 - Never commit secrets, API keys, or credentials to version control

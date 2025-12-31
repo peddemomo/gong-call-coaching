@@ -3,6 +3,7 @@ version: "3.9"
 services:
   db:
     image: postgres:15
+    container_name: gong-call-coaching-db
     ports:
       - "5432:5432"
     environment:
@@ -11,6 +12,29 @@ services:
       POSTGRES_DB: app
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  liquibase:
+    image: liquibase/liquibase:latest
+    container_name: gong-call-coaching-liquibase
+    working_dir: /liquibase/changelog
+    volumes:
+      - ./api/db:/liquibase/changelog
+      - ./api/liquibase.properties:/liquibase/liquibase.properties
+    environment:
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://db:5432/app
+      LIQUIBASE_COMMAND_USERNAME: postgres
+      LIQUIBASE_COMMAND_PASSWORD: postgres
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db/changelog/master.xml
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - tools
 
 volumes:
   postgres_data:
