@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: gong-call-coaching-liquibase
     volumes:
-      - ./liquibase:/liquibase/changelog
+      - ./api/liquibase:/liquibase/changelog
     environment:
       LIQUIBASE_COMMAND_URL: jdbc:postgresql://gong-call-coaching-db:5432/postgres
       LIQUIBASE_COMMAND_USERNAME: postgres
