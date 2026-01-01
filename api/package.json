@@ -9,7 +9,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "db:up": "docker compose -f ../docker-compose.yml up -d db",
     "db:down": "docker compose -f ../docker-compose.yml down",
-    "db:migrate": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase update",
+    "db:migrate": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase update --log-level debug",
     "db:rollback": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase rollback-count 1",
     "db:status": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase status",
     "db:generate-changelog": "docker compose -f ../docker-compose.yml --profile tools run --rm liquibase generate-changelog --changelog-file=db/changelog/changes/auto-generated-changelog.xml"

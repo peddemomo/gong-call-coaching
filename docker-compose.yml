@@ -15,19 +15,21 @@ services:
       retries: 5
 
   liquibase:
-    image: liquibase/liquibase:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: gong-call-coaching-liquibase
-    working_dir: /liquibase/changelog
+    volumes:
+      - ./liquibase:/liquibase/changelog
     environment:
       LIQUIBASE_COMMAND_URL: jdbc:postgresql://gong-call-coaching-db:5432/postgres
       LIQUIBASE_COMMAND_USERNAME: postgres
       LIQUIBASE_COMMAND_PASSWORD: postgres
-      LIQUIBASE_COMMAND_CHANGELOG_FILE: db/changelog/master.xml
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: master.xml
+      LIQUIBASE_DRIVER: org.postgresql.Driver
     depends_on:
       db:
         condition: service_healthy
-    profiles:
-      - tools
 
 volumes:
   postgres_data:
