@@ -53,6 +53,11 @@ The backend API is a Node + Express + TypeScript server.
   - Body: `{ "email": "user@example.com" }`
   - Returns: The created AE object
   - Returns 409 if email already exists
+- `GET /prompt` - Returns the active prompt (or empty default if none)
+- `PUT /prompt` - Update the active prompt
+  - Body: `{ "body": "Your prompt text here" }`
+  - Returns: The created prompt object
+  - Deactivates all previous prompts
 
 ### Testing with curl
 
@@ -67,6 +72,14 @@ curl http://localhost:3000/aes
 curl -X POST http://localhost:3000/aes \
   -H "Content-Type: application/json" \
   -d '{"email": "jane@example.com"}'
+
+# Get active prompt
+curl http://localhost:3000/prompt
+
+# Update prompt
+curl -X PUT http://localhost:3000/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"body": "You are a sales coach. Analyze this call and provide feedback."}'
 ```
 
 ## Database

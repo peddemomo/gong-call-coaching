@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAEs, createAE, AE } from "./api/client";
+import { getAEs, createAE, AE, getPrompt, updatePrompt } from "./api/client";
 
 function App() {
   const [email, setEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [promptBody, setPromptBody] = useState("");
+  const [promptSaved, setPromptSaved] = useState(false);
   const queryClient = useQueryClient();
 
   const {
@@ -26,6 +28,33 @@ function App() {
     },
     onError: (err: Error) => {
       setFormError(err.message);
+    },
+  });
+
+  // Prompt query and mutation
+  const {
+    data: prompt,
+    isLoading: isPromptLoading,
+    isError: isPromptError,
+    error: promptError,
+  } = useQuery({
+    queryKey: ["prompt"],
+    queryFn: getPrompt,
+  });
+
+  // Sync promptBody with fetched prompt
+  useEffect(() => {
+    if (prompt) {
+      setPromptBody(prompt.body);
+    }
+  }, [prompt]);
+
+  const promptMutation = useMutation({
+    mutationFn: updatePrompt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prompt"] });
+      setPromptSaved(true);
+      setTimeout(() => setPromptSaved(false), 2000);
     },
   });
 
@@ -140,6 +169,71 @@ function App() {
               ))}
             </tbody>
           </table>
+        )}
+      </section>
+
+      {/* Prompt Section */}
+      <section style={{ marginTop: "3rem" }}>
+        <h2>Prompt</h2>
+
+        {isPromptLoading && <p>Loading prompt...</p>}
+
+        {isPromptError && (
+          <div style={{ color: "#cc0000", padding: "1rem", backgroundColor: "#fff0f0", borderRadius: "4px" }}>
+            <p style={{ margin: 0 }}>
+              Error loading prompt: {promptError instanceof Error ? promptError.message : "Unknown error"}
+            </p>
+          </div>
+        )}
+
+        {!isPromptLoading && !isPromptError && (
+          <div>
+            <textarea
+              value={promptBody}
+              onChange={(e) => setPromptBody(e.target.value)}
+              disabled={promptMutation.isPending}
+              placeholder="Enter your coaching prompt here..."
+              style={{
+                width: "100%",
+                minHeight: "200px",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                fontFamily: "monospace",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                resize: "vertical",
+                boxSizing: "border-box",
+              }}
+            />
+            <div style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "1rem" }}>
+              <button
+                onClick={() => promptMutation.mutate(promptBody)}
+                disabled={promptMutation.isPending || !promptBody.trim()}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "1rem",
+                  backgroundColor: "#0066cc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: promptMutation.isPending || !promptBody.trim() ? "not-allowed" : "pointer",
+                  opacity: promptMutation.isPending || !promptBody.trim() ? 0.6 : 1,
+                }}
+              >
+                {promptMutation.isPending ? "Saving..." : "Save Prompt"}
+              </button>
+              {promptSaved && (
+                <span style={{ color: "#1e7e34", fontWeight: 500 }}>
+                  Saved!
+                </span>
+              )}
+              {promptMutation.isError && (
+                <span style={{ color: "#cc0000" }}>
+                  Error: {promptMutation.error instanceof Error ? promptMutation.error.message : "Failed to save"}
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </section>
     </div>

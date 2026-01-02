@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import healthRouter from "./routes/health";
 import aesRouter from "./routes/aes";
+import promptsRouter from "./routes/prompts";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ app.use(express.json());
 // Routes
 app.use("/health", healthRouter);
 app.use("/aes", aesRouter);
+app.use("/prompt", promptsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

@@ -43,3 +43,41 @@ export const createAE = async (email: string): Promise<AE> => {
   return response.json();
 };
 
+// Prompt types and API functions
+export interface Prompt {
+  id?: number;
+  body: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export const getPrompt = async (): Promise<Prompt> => {
+  const response = await fetch(`${API_BASE_URL}/prompt`, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to fetch prompt: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const updatePrompt = async (body: string): Promise<Prompt> => {
+  const response = await fetch(`${API_BASE_URL}/prompt`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ body }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to update prompt: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
