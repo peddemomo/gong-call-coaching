@@ -3,51 +3,56 @@
 Internal app for generating and sending AI-powered sales coaching emails
 based on Gong calls.
 
-## Local development
+## Quick Start
 
-Run all services:
-```bash
-docker compose up
-```
+### 1. Start the Database and Run Migrations
 
-## Database
-
-Start the database and run migrations:
 ```bash
 docker compose up db -d
-docker compose run --rm liquibase update
+docker compose --profile tools run --rm liquibase update
+```
+
+### 2. Start the API
+
+```bash
+cd api
+cp .env.example .env
+npm install
+npm run dev
+```
+
+The API will be running at http://localhost:3000
+
+### 3. Start the Web App
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+The web app will be running at http://localhost:5173
+
+#### Web Environment Variables
+
+Create a `web/.env` file (optional, defaults work for local dev):
+
+```
+VITE_API_BASE_URL=http://localhost:3000
 ```
 
 ## API
 
 The backend API is a Node + Express + TypeScript server.
 
-### Setup
-
-1. Start the database:
-   ```bash
-   docker compose up db -d
-   ```
-
-2. Run database migrations:
-   ```bash
-   docker compose run --rm liquibase update
-   ```
-
-3. Set up the API:
-   ```bash
-   cd api
-   cp .env.example .env
-   npm install
-   npm run dev
-   ```
-
-The API will be running at http://localhost:3000
-
 ### Endpoints
 
 - `GET /health` - Health check, returns `{ "ok": true }`
 - `GET /aes` - Returns all account executives from the database
+- `POST /aes` - Create a new AE
+  - Body: `{ "email": "user@example.com" }`
+  - Returns: The created AE object
+  - Returns 409 if email already exists
 
 ### Testing with curl
 
@@ -57,4 +62,33 @@ curl http://localhost:3000/health
 
 # Get all AEs
 curl http://localhost:3000/aes
+
+# Create an AE
+curl -X POST http://localhost:3000/aes \
+  -H "Content-Type: application/json" \
+  -d '{"email": "jane@example.com"}'
+```
+
+## Database
+
+### Manual database commands
+
+Start the database:
+```bash
+docker compose up db -d
+```
+
+Run migrations:
+```bash
+docker compose --profile tools run --rm liquibase update
+```
+
+Check migration status:
+```bash
+docker compose --profile tools run --rm liquibase status
+```
+
+Rollback last migration:
+```bash
+docker compose --profile tools run --rm liquibase rollback-count 1
 ```
