@@ -4,6 +4,8 @@ import cors from "cors";
 import healthRouter from "./routes/health";
 import aesRouter from "./routes/aes";
 import promptsRouter from "./routes/prompts";
+import emailLogsRouter from "./routes/emailLogs";
+import generateRouter from "./routes/generate";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +24,8 @@ app.use(express.json());
 app.use("/health", healthRouter);
 app.use("/aes", aesRouter);
 app.use("/prompt", promptsRouter);
+app.use("/email-logs", emailLogsRouter);
+app.use("/generate", generateRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

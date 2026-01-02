@@ -58,6 +58,11 @@ The backend API is a Node + Express + TypeScript server.
   - Body: `{ "body": "Your prompt text here" }`
   - Returns: The created prompt object
   - Deactivates all previous prompts
+- `GET /email-logs` - Returns the 100 most recent email logs (read-only audit view)
+- `POST /generate` - Generate a coaching email (does not send yet)
+  - Body: `{ "ae_email": "user@example.com", "gong_call_id": "call_123" }`
+  - Returns: The created email_log row with status 'queued'
+  - Returns 409 if already generated for this AE + call combination
 
 ### Testing with curl
 
@@ -80,6 +85,14 @@ curl http://localhost:3000/prompt
 curl -X PUT http://localhost:3000/prompt \
   -H "Content-Type: application/json" \
   -d '{"body": "You are a sales coach. Analyze this call and provide feedback."}'
+
+# Get email logs (100 most recent)
+curl http://localhost:3000/email-logs
+
+# Generate a coaching email (placeholder, does not send)
+curl -X POST http://localhost:3000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"ae_email": "jane@example.com", "gong_call_id": "call_123"}'
 ```
 
 ## Database

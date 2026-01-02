@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAEs, createAE, AE, getPrompt, updatePrompt } from "./api/client";
+import { getAEs, createAE, AE, getPrompt, updatePrompt, getEmailLogs, EmailLog, generateEmail } from "./api/client";
 
 function App() {
   const [email, setEmail] = useState("");
@@ -57,6 +57,47 @@ function App() {
       setTimeout(() => setPromptSaved(false), 2000);
     },
   });
+
+  // Email logs query
+  const {
+    data: emailLogs,
+    isLoading: isEmailLogsLoading,
+    isError: isEmailLogsError,
+    error: emailLogsError,
+  } = useQuery({
+    queryKey: ["emailLogs"],
+    queryFn: getEmailLogs,
+  });
+
+  // Generate email mutation
+  const [generateMessage, setGenerateMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+
+  const generateMutation = useMutation({
+    mutationFn: ({ ae_email, gong_call_id }: { ae_email: string; gong_call_id: string }) =>
+      generateEmail(ae_email, gong_call_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["emailLogs"] });
+      setGenerateMessage({ type: "success", text: "Email generated successfully!" });
+      setGeneratingFor(null);
+      setTimeout(() => setGenerateMessage(null), 3000);
+    },
+    onError: (err: Error) => {
+      const isAlreadyGenerated = err.message.includes("Already generated");
+      setGenerateMessage({
+        type: "error",
+        text: isAlreadyGenerated ? "Already generated for this AE and call" : err.message,
+      });
+      setGeneratingFor(null);
+      setTimeout(() => setGenerateMessage(null), 3000);
+    },
+  });
+
+  const handleGenerate = (ae_email: string) => {
+    setGeneratingFor(ae_email);
+    setGenerateMessage(null);
+    generateMutation.mutate({ ae_email, gong_call_id: "test_call_001" });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +175,21 @@ function App() {
           <p style={{ color: "#666" }}>No AEs yet. Add one above!</p>
         )}
 
+        {/* Generate Message */}
+        {generateMessage && (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              marginBottom: "1rem",
+              borderRadius: "4px",
+              backgroundColor: generateMessage.type === "success" ? "#e6f4ea" : "#fff0f0",
+              color: generateMessage.type === "success" ? "#1e7e34" : "#cc0000",
+            }}
+          >
+            {generateMessage.text}
+          </div>
+        )}
+
         {aes && aes.length > 0 && (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -141,6 +197,7 @@ function App() {
                 <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Email</th>
                 <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
                 <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created</th>
+                <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -164,6 +221,24 @@ function App() {
                   </td>
                   <td style={{ padding: "0.75rem", color: "#666" }}>
                     {new Date(ae.created_at).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: "0.75rem" }}>
+                    <button
+                      onClick={() => handleGenerate(ae.email)}
+                      disabled={generatingFor === ae.email}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        backgroundColor: "#f0f0f0",
+                        color: "#333",
+                        border: "1px solid #ccc",
+                        borderRadius: "4px",
+                        cursor: generatingFor === ae.email ? "not-allowed" : "pointer",
+                        opacity: generatingFor === ae.email ? 0.6 : 1,
+                      }}
+                    >
+                      {generatingFor === ae.email ? "Generating..." : "Generate (test)"}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -236,7 +311,85 @@ function App() {
           </div>
         )}
       </section>
+
+      {/* Email Logs Section */}
+      <section style={{ marginTop: "3rem" }}>
+        <h2>Email Logs</h2>
+
+        {isEmailLogsLoading && <p>Loading email logs...</p>}
+
+        {isEmailLogsError && (
+          <div style={{ color: "#cc0000", padding: "1rem", backgroundColor: "#fff0f0", borderRadius: "4px" }}>
+            <p style={{ margin: 0 }}>
+              Error loading email logs: {emailLogsError instanceof Error ? emailLogsError.message : "Unknown error"}
+            </p>
+          </div>
+        )}
+
+        {emailLogs && emailLogs.length === 0 && (
+          <p style={{ color: "#666" }}>No email logs yet.</p>
+        )}
+
+        {emailLogs && emailLogs.length > 0 && (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #ddd" }}>
+                  <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>AE Email</th>
+                  <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Gong Call ID</th>
+                  <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
+                  <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {emailLogs.map((log: EmailLog) => (
+                  <tr key={log.id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "0.75rem" }}>{log.ae_email}</td>
+                    <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.875rem" }}>
+                      {log.gong_call_id}
+                    </td>
+                    <td style={{ padding: "0.75rem" }}>
+                      <StatusBadge status={log.status} />
+                    </td>
+                    <td style={{ padding: "0.75rem", color: "#666" }}>
+                      {new Date(log.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: EmailLog["status"] }) {
+  const styles: Record<EmailLog["status"], { bg: string; color: string }> = {
+    sent: { bg: "#e6f4ea", color: "#1e7e34" },
+    failed: { bg: "#fce8e6", color: "#c5221f" },
+    queued: { bg: "#e8f0fe", color: "#1a73e8" },
+    skipped: { bg: "#f5f5f5", color: "#666" },
+  };
+
+  const style = styles[status] || styles.queued;
+
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "0.25rem 0.5rem",
+        borderRadius: "4px",
+        fontSize: "0.75rem",
+        fontWeight: 500,
+        backgroundColor: style.bg,
+        color: style.color,
+        textTransform: "capitalize",
+      }}
+    >
+      {status}
+    </span>
   );
 }
 
