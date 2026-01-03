@@ -69,6 +69,22 @@ function App() {
     queryFn: getEmailLogs,
   });
 
+  // Email log detail modal state
+  const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
+
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedLog(null);
+      }
+    };
+    if (selectedLog) {
+      document.addEventListener("keydown", handleEsc);
+      return () => document.removeEventListener("keydown", handleEsc);
+    }
+  }, [selectedLog]);
+
   // Generate email mutation
   const [generateMessage, setGenerateMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
@@ -339,6 +355,7 @@ function App() {
                   <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Gong Call ID</th>
                   <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
                   <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created At</th>
+                  <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -354,6 +371,22 @@ function App() {
                     <td style={{ padding: "0.75rem", color: "#666" }}>
                       {new Date(log.created_at).toLocaleString()}
                     </td>
+                    <td style={{ padding: "0.75rem" }}>
+                      <button
+                        onClick={() => setSelectedLog(log)}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.75rem",
+                          backgroundColor: "#f0f0f0",
+                          color: "#333",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        View
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -361,6 +394,11 @@ function App() {
           </div>
         )}
       </section>
+
+      {/* Email Log Detail Modal */}
+      {selectedLog && (
+        <EmailLogModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+      )}
     </div>
   );
 }
@@ -390,6 +428,172 @@ function StatusBadge({ status }: { status: EmailLog["status"] }) {
     >
       {status}
     </span>
+  );
+}
+
+function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void }) {
+  const [copiedField, setCopiedField] = useState<"subject" | "body" | null>(null);
+
+  const handleCopy = async (text: string, field: "subject" | "body") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const displayValue = (value: string | null | undefined) => {
+    return value && value.trim() ? value : "(empty)";
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "white",
+          borderRadius: "8px",
+          padding: "1.5rem",
+          maxWidth: "700px",
+          width: "90%",
+          maxHeight: "85vh",
+          overflow: "auto",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+          <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Email Details</h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "1.5rem",
+              cursor: "pointer",
+              color: "#666",
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Subject */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+            <label style={{ fontSize: "0.75rem", color: "#666", textTransform: "uppercase", fontWeight: 600 }}>
+              Subject
+            </label>
+            <button
+              onClick={() => handleCopy(log.subject || "", "subject")}
+              disabled={!log.subject}
+              style={{
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.7rem",
+                backgroundColor: copiedField === "subject" ? "#e6f4ea" : "#f0f0f0",
+                color: copiedField === "subject" ? "#1e7e34" : "#333",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                cursor: log.subject ? "pointer" : "not-allowed",
+                opacity: log.subject ? 1 : 0.5,
+              }}
+            >
+              {copiedField === "subject" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p
+            style={{
+              margin: 0,
+              padding: "0.5rem",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "4px",
+              color: log.subject ? "#333" : "#999",
+            }}
+          >
+            {displayValue(log.subject)}
+          </p>
+        </div>
+
+        {/* Body */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+            <label style={{ fontSize: "0.75rem", color: "#666", textTransform: "uppercase", fontWeight: 600 }}>
+              Body
+            </label>
+            <button
+              onClick={() => handleCopy(log.body || "", "body")}
+              disabled={!log.body}
+              style={{
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.7rem",
+                backgroundColor: copiedField === "body" ? "#e6f4ea" : "#f0f0f0",
+                color: copiedField === "body" ? "#1e7e34" : "#333",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                cursor: log.body ? "pointer" : "not-allowed",
+                opacity: log.body ? 1 : 0.5,
+              }}
+            >
+              {copiedField === "body" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              padding: "0.75rem",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "4px",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontFamily: "monospace",
+              fontSize: "0.875rem",
+              maxHeight: "400px",
+              overflow: "auto",
+              color: log.body ? "#333" : "#999",
+            }}
+          >
+            {displayValue(log.body)}
+          </pre>
+        </div>
+
+        {/* Close Button */}
+        <div style={{ marginTop: "1.5rem", textAlign: "right" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "0.5rem 1.5rem",
+              fontSize: "1rem",
+              backgroundColor: "#0066cc",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
