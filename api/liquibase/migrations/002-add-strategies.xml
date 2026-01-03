@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Create strategies table -->
+    <changeSet id="002-create-strategies-table" author="system">
+        <createTable tableName="strategies">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Insert default strategy -->
+    <changeSet id="002-insert-default-strategy" author="system">
+        <sql>
+            INSERT INTO public.strategies (id, name, created_at)
+            VALUES ('00000000-0000-0000-0000-000000000001', 'Default Strategy', NOW());
+        </sql>
+    </changeSet>
+
+    <!-- Add strategy_id column to aes (nullable initially for migration) -->
+    <changeSet id="002-add-strategy-id-to-aes" author="system">
+        <addColumn tableName="aes">
+            <column name="strategy_id" type="UUID"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Add strategy_id column to prompts (nullable initially for migration) -->
+    <changeSet id="002-add-strategy-id-to-prompts" author="system">
+        <addColumn tableName="prompts">
+            <column name="strategy_id" type="UUID"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Add strategy_id column to email_logs (nullable initially for migration) -->
+    <changeSet id="002-add-strategy-id-to-email-logs" author="system">
+        <addColumn tableName="email_logs">
+            <column name="strategy_id" type="UUID"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Backfill existing aes rows to default strategy -->
+    <changeSet id="002-backfill-aes-strategy" author="system">
+        <sql>
+            UPDATE public.aes 
+            SET strategy_id = '00000000-0000-0000-0000-000000000001' 
+            WHERE strategy_id IS NULL;
+        </sql>
+    </changeSet>
+
+    <!-- Backfill existing prompts rows to default strategy -->
+    <changeSet id="002-backfill-prompts-strategy" author="system">
+        <sql>
+            UPDATE public.prompts 
+            SET strategy_id = '00000000-0000-0000-0000-000000000001' 
+            WHERE strategy_id IS NULL;
+        </sql>
+    </changeSet>
+
+    <!-- Backfill existing email_logs rows to default strategy -->
+    <changeSet id="002-backfill-email-logs-strategy" author="system">
+        <sql>
+            UPDATE public.email_logs 
+            SET strategy_id = '00000000-0000-0000-0000-000000000001' 
+            WHERE strategy_id IS NULL;
+        </sql>
+    </changeSet>
+
+    <!-- Now enforce NOT NULL on aes.strategy_id -->
+    <changeSet id="002-enforce-aes-strategy-not-null" author="system">
+        <addNotNullConstraint tableName="aes" columnName="strategy_id"/>
+    </changeSet>
+
+    <!-- Now enforce NOT NULL on prompts.strategy_id -->
+    <changeSet id="002-enforce-prompts-strategy-not-null" author="system">
+        <addNotNullConstraint tableName="prompts" columnName="strategy_id"/>
+    </changeSet>
+
+    <!-- Now enforce NOT NULL on email_logs.strategy_id -->
+    <changeSet id="002-enforce-email-logs-strategy-not-null" author="system">
+        <addNotNullConstraint tableName="email_logs" columnName="strategy_id"/>
+    </changeSet>
+
+    <!-- Add foreign key: aes.strategy_id -> strategies.id -->
+    <changeSet id="002-fk-aes-strategy" author="system">
+        <addForeignKeyConstraint 
+            baseTableName="aes" 
+            baseColumnNames="strategy_id"
+            referencedTableName="strategies" 
+            referencedColumnNames="id"
+            constraintName="fk_aes_strategy"/>
+    </changeSet>
+
+    <!-- Add foreign key: prompts.strategy_id -> strategies.id -->
+    <changeSet id="002-fk-prompts-strategy" author="system">
+        <addForeignKeyConstraint 
+            baseTableName="prompts" 
+            baseColumnNames="strategy_id"
+            referencedTableName="strategies" 
+            referencedColumnNames="id"
+            constraintName="fk_prompts_strategy"/>
+    </changeSet>
+
+    <!-- Add foreign key: email_logs.strategy_id -> strategies.id -->
+    <changeSet id="002-fk-email-logs-strategy" author="system">
+        <addForeignKeyConstraint 
+            baseTableName="email_logs" 
+            baseColumnNames="strategy_id"
+            referencedTableName="strategies" 
+            referencedColumnNames="id"
+            constraintName="fk_email_logs_strategy"/>
+    </changeSet>
+
+    <!-- Drop the unique constraint on aes.email since now an email is unique per strategy -->
+    <changeSet id="002-drop-aes-email-unique" author="system">
+        <dropUniqueConstraint tableName="aes" constraintName="aes_email_key"/>
+    </changeSet>
+
+    <!-- Add unique constraint on aes(strategy_id, email) - each AE email unique within a strategy -->
+    <changeSet id="002-add-aes-strategy-email-unique" author="system">
+        <addUniqueConstraint 
+            tableName="aes" 
+            columnNames="strategy_id, email" 
+            constraintName="aes_strategy_id_email_unique"/>
+    </changeSet>
+
+</databaseChangeLog>
+

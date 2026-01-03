@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import pool from "../db/pool";
+import { DEFAULT_STRATEGY_ID } from "../services/generateCoachingEmail";
 
 const router = Router();
 
@@ -8,17 +9,19 @@ const updatePromptSchema = z.object({
   body: z.string().min(1, "Prompt body cannot be empty"),
 });
 
+// GET /prompt - Get active prompt (backward compatible - defaults to Default Strategy)
 router.get("/", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `SELECT * FROM public.prompts 
-       WHERE is_active = true 
+       WHERE strategy_id = $1 AND is_active = true 
        ORDER BY created_at DESC 
-       LIMIT 1`
+       LIMIT 1`,
+      [DEFAULT_STRATEGY_ID]
     );
 
     if (result.rows.length === 0) {
-      res.json({ body: "", is_active: true });
+      res.json({ body: "", is_active: true, strategy_id: DEFAULT_STRATEGY_ID });
       return;
     }
 
@@ -29,6 +32,7 @@ router.get("/", async (_req: Request, res: Response) => {
   }
 });
 
+// PUT /prompt - Set active prompt (backward compatible - defaults to Default Strategy)
 router.put("/", async (req: Request, res: Response) => {
   try {
     const parsed = updatePromptSchema.safeParse(req.body);
@@ -46,15 +50,18 @@ router.put("/", async (req: Request, res: Response) => {
     try {
       await client.query("BEGIN");
 
-      // Deactivate all existing prompts
-      await client.query("UPDATE public.prompts SET is_active = false");
+      // Deactivate all existing prompts for Default Strategy only
+      await client.query(
+        "UPDATE public.prompts SET is_active = false WHERE strategy_id = $1",
+        [DEFAULT_STRATEGY_ID]
+      );
 
       // Insert new active prompt
       const result = await client.query(
-        `INSERT INTO public.prompts (body, is_active, created_at)
-         VALUES ($1, true, NOW())
+        `INSERT INTO public.prompts (body, is_active, strategy_id, created_at)
+         VALUES ($1, true, $2, NOW())
          RETURNING *`,
-        [body]
+        [body, DEFAULT_STRATEGY_ID]
       );
 
       await client.query("COMMIT");
@@ -73,4 +80,3 @@ router.put("/", async (req: Request, res: Response) => {
 });
 
 export default router;
-

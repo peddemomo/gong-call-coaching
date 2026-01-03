@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   generateCoachingEmail,
   DuplicateEmailError,
+  DEFAULT_STRATEGY_ID,
 } from "../services/generateCoachingEmail";
 
 const router = Router();
@@ -12,6 +13,7 @@ const generateRequestSchema = z.object({
   gong_call_id: z.string().min(1, "Gong call ID is required"),
 });
 
+// POST /generate - Generate email (backward compatible - defaults to Default Strategy)
 router.post("/", async (req: Request, res: Response) => {
   try {
     const parsed = generateRequestSchema.safeParse(req.body);
@@ -25,7 +27,11 @@ router.post("/", async (req: Request, res: Response) => {
 
     const { ae_email, gong_call_id } = parsed.data;
 
-    const emailLog = await generateCoachingEmail({ ae_email, gong_call_id });
+    const emailLog = await generateCoachingEmail({
+      ae_email,
+      gong_call_id,
+      strategy_id: DEFAULT_STRATEGY_ID,
+    });
 
     res.status(201).json(emailLog);
   } catch (error: unknown) {
@@ -40,4 +46,3 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 export default router;
-

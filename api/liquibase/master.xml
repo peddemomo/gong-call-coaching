@@ -7,6 +7,8 @@
 
     <!-- Include all changelog files here -->
     <include file="migrations/001-initial-schema.xml"/>
+    <include file="migrations/002-add-strategies.xml"/>
+    <include file="migrations/003-global-ae-uniqueness.xml"/>
 
 </databaseChangeLog>
 

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- 
+    Enforce global AE uniqueness: each AE (email) can belong to ONLY ONE strategy.
+    This migration:
+    1. Drops the (strategy_id, email) unique constraint
+    2. Adds a global UNIQUE constraint on email
+    -->
+
+    <!-- Drop the per-strategy unique constraint on (strategy_id, email) -->
+    <changeSet id="003-drop-aes-strategy-email-unique" author="system">
+        <dropUniqueConstraint 
+            tableName="aes" 
+            constraintName="aes_strategy_id_email_unique"/>
+    </changeSet>
+
+    <!-- Add global unique constraint on email -->
+    <changeSet id="003-add-aes-email-global-unique" author="system">
+        <addUniqueConstraint 
+            tableName="aes" 
+            columnNames="email" 
+            constraintName="aes_email_unique"/>
+    </changeSet>
+
+</databaseChangeLog>
+
