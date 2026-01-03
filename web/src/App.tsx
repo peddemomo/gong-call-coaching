@@ -25,6 +25,9 @@ function App() {
   // AE form state
   const [email, setEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [showAllAEs, setShowAllAEs] = useState(false);
+  const [showAllEmailLogs, setShowAllEmailLogs] = useState(false);
+  const DISPLAY_LIMIT = 5;
 
   // Prompt state
   const [promptBody, setPromptBody] = useState("");
@@ -47,6 +50,12 @@ function App() {
       setSelectedStrategyId(strategies[0].id);
     }
   }, [strategies, selectedStrategyId]);
+
+  // Reset overflow states when strategy changes
+  useEffect(() => {
+    setShowAllAEs(false);
+    setShowAllEmailLogs(false);
+  }, [selectedStrategyId]);
 
   // Create strategy mutation
   const createStrategyMutation = useMutation({
@@ -426,59 +435,78 @@ function App() {
             )}
 
             {aes && aes.length > 0 && (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "2px solid #ddd" }}>
-                    <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Email</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {aes.map((ae: AE) => (
-                    <tr key={ae.id} style={{ borderBottom: "1px solid #eee" }}>
-                      <td style={{ padding: "0.75rem" }}>{ae.email}</td>
-                      <td style={{ padding: "0.75rem" }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "0.25rem 0.5rem",
-                            borderRadius: "4px",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            backgroundColor: ae.enabled ? "#e6f4ea" : "#fce8e6",
-                            color: ae.enabled ? "#1e7e34" : "#c5221f",
-                          }}
-                        >
-                          {ae.enabled ? "Enabled" : "Disabled"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "0.75rem", color: "#666" }}>
-                        {new Date(ae.created_at).toLocaleDateString()}
-                      </td>
-                      <td style={{ padding: "0.75rem" }}>
-                        <button
-                          onClick={() => handleGenerate(ae.email)}
-                          disabled={generatingFor === ae.email}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.75rem",
-                            backgroundColor: "#f0f0f0",
-                            color: "#333",
-                            border: "1px solid #ccc",
-                            borderRadius: "4px",
-                            cursor: generatingFor === ae.email ? "not-allowed" : "pointer",
-                            opacity: generatingFor === ae.email ? 0.6 : 1,
-                          }}
-                        >
-                          {generatingFor === ae.email ? "Generating..." : "Generate (test)"}
-                        </button>
-                      </td>
+              <>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #ddd" }}>
+                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Email</th>
+                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
+                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created</th>
+                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(showAllAEs ? aes : aes.slice(0, DISPLAY_LIMIT)).map((ae: AE) => (
+                      <tr key={ae.id} style={{ borderBottom: "1px solid #eee" }}>
+                        <td style={{ padding: "0.75rem" }}>{ae.email}</td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "0.25rem 0.5rem",
+                              borderRadius: "4px",
+                              fontSize: "0.75rem",
+                              fontWeight: 500,
+                              backgroundColor: ae.enabled ? "#e6f4ea" : "#fce8e6",
+                              color: ae.enabled ? "#1e7e34" : "#c5221f",
+                            }}
+                          >
+                            {ae.enabled ? "Enabled" : "Disabled"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.75rem", color: "#666" }}>
+                          {new Date(ae.created_at).toLocaleDateString()}
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <button
+                            onClick={() => handleGenerate(ae.email)}
+                            disabled={generatingFor === ae.email}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                              backgroundColor: "#f0f0f0",
+                              color: "#333",
+                              border: "1px solid #ccc",
+                              borderRadius: "4px",
+                              cursor: generatingFor === ae.email ? "not-allowed" : "pointer",
+                              opacity: generatingFor === ae.email ? 0.6 : 1,
+                            }}
+                          >
+                            {generatingFor === ae.email ? "Generating..." : "Generate (test)"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {aes.length > DISPLAY_LIMIT && (
+                  <button
+                    onClick={() => setShowAllAEs(!showAllAEs)}
+                    style={{
+                      marginTop: "0.75rem",
+                      padding: "0.5rem 1rem",
+                      fontSize: "0.875rem",
+                      backgroundColor: "transparent",
+                      color: "#0066cc",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {showAllAEs ? "Show less" : `See ${aes.length - DISPLAY_LIMIT} more`}
+                  </button>
+                )}
+              </>
             )}
           </section>
 
@@ -568,51 +596,70 @@ function App() {
             )}
 
             {emailLogs && emailLogs.length > 0 && (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "2px solid #ddd" }}>
-                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>AE Email</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Gong Call ID</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created At</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {emailLogs.map((log: EmailLog) => (
-                      <tr key={log.id} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "0.75rem" }}>{log.ae_email}</td>
-                        <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.875rem" }}>
-                          {log.gong_call_id}
-                        </td>
-                        <td style={{ padding: "0.75rem" }}>
-                          <StatusBadge status={log.status} />
-                        </td>
-                        <td style={{ padding: "0.75rem", color: "#666" }}>
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                        <td style={{ padding: "0.75rem" }}>
-                          <button
-                            onClick={() => setSelectedLog(log)}
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.75rem",
-                              backgroundColor: "#f0f0f0",
-                              color: "#333",
-                              border: "1px solid #ccc",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            View
-                          </button>
-                        </td>
+              <>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid #ddd" }}>
+                        <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>AE Email</th>
+                        <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Gong Call ID</th>
+                        <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Status</th>
+                        <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Created At</th>
+                        <th style={{ textAlign: "left", padding: "0.75rem", color: "#333" }}>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {(showAllEmailLogs ? emailLogs : emailLogs.slice(0, DISPLAY_LIMIT)).map((log: EmailLog) => (
+                        <tr key={log.id} style={{ borderBottom: "1px solid #eee" }}>
+                          <td style={{ padding: "0.75rem" }}>{log.ae_email}</td>
+                          <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.875rem" }}>
+                            {log.gong_call_id}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <StatusBadge status={log.status} />
+                          </td>
+                          <td style={{ padding: "0.75rem", color: "#666" }}>
+                            {new Date(log.created_at).toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <button
+                              onClick={() => setSelectedLog(log)}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                                backgroundColor: "#f0f0f0",
+                                color: "#333",
+                                border: "1px solid #ccc",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {emailLogs.length > DISPLAY_LIMIT && (
+                  <button
+                    onClick={() => setShowAllEmailLogs(!showAllEmailLogs)}
+                    style={{
+                      marginTop: "0.75rem",
+                      padding: "0.5rem 1rem",
+                      fontSize: "0.875rem",
+                      backgroundColor: "transparent",
+                      color: "#0066cc",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {showAllEmailLogs ? "Show less" : `See ${emailLogs.length - DISPLAY_LIMIT} more`}
+                  </button>
+                )}
+              </>
             )}
           </section>
         </>
