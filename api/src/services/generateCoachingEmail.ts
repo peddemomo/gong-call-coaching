@@ -1,5 +1,6 @@
 import pool from "../db/pool";
 import { ClassifierDecision } from "./classifyCallEligibility";
+import { generateCoachingFeedback } from "./openaiCoaching";
 
 // Default strategy ID for backward compatibility
 export const DEFAULT_STRATEGY_ID = "00000000-0000-0000-0000-000000000001";
@@ -94,18 +95,51 @@ export async function generateCoachingEmail(
     }
   }
 
-  // TODO: Fetch the active prompt and use it with OpenAI
-  // For now, generate a placeholder that simulates AI coaching output
+  // Fetch the active prompt for this strategy
+  const promptResult = await pool.query(
+    `SELECT body FROM public.prompts 
+     WHERE strategy_id = $1 AND is_active = true 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [strategy_id]
+  );
 
-  const subject = `Your Coaching Feedback`;
-  const body = `[Placeholder - AI coaching feedback will appear here]
-
-This is where the AI-generated coaching feedback will be displayed based on the Gong call transcript.
-
-The actual implementation will:
-1. Fetch the call transcript from Gong
-2. Send it to ChatGPT with your configured prompt
-3. Return personalized coaching feedback`;
+  const promptBody = promptResult.rows[0]?.body || "";
+  
+  // Check if we have a transcript to analyze
+  const transcript = context?.transcript;
+  
+  let subject: string;
+  let body: string;
+  
+  if (!transcript) {
+    // No transcript available - use placeholder
+    subject = "Your Coaching Feedback";
+    body = "[No transcript available for this call - coaching feedback could not be generated]";
+  } else if (!promptBody) {
+    // No prompt configured - use placeholder
+    subject = "Your Coaching Feedback";
+    body = "[No coaching prompt configured for this strategy - please configure a prompt to enable AI coaching feedback]";
+  } else {
+    // Generate coaching feedback using OpenAI
+    try {
+      const coachingResult = await generateCoachingFeedback({
+        prompt: promptBody,
+        transcript,
+        call_title: context?.call_title,
+        call_date: context?.call_date,
+        ae_email,
+        external_emails: context?.external_emails,
+      });
+      
+      subject = coachingResult.subject;
+      body = coachingResult.body;
+    } catch (error) {
+      console.error("[OpenAI] Error generating coaching feedback:", error);
+      subject = "Your Coaching Feedback";
+      body = `[Error generating coaching feedback: ${error instanceof Error ? error.message : "Unknown error"}]`;
+    }
+  }
 
   // For test runs, use 'generated' status instead of 'queued' since we won't actually queue
   const status = is_test ? "generated" : "queued";

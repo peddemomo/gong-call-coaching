@@ -8,7 +8,7 @@
 export interface GongParticipant {
   emailAddress?: string;
   name: string;
-  affiliation: "internal" | "external" | "unknown";
+  affiliation: string; // Gong returns "Internal", "External", "Unknown" (capitalized)
 }
 
 export interface GongCallMetadata {
@@ -56,22 +56,39 @@ function getAuthHeader(): string {
  */
 export async function getCallById(gongCallId: string): Promise<GongCallMetadata> {
   const authHeader = getAuthHeader();
-
-  const response = await fetch(`${GONG_BASE_URL}/v2/calls/extensive`, {
-    method: "POST",
-    headers: {
-      Authorization: authHeader,
-      "Content-Type": "application/json",
+  const url = `${GONG_BASE_URL}/v2/calls/extensive`;
+  const requestBody = {
+    filter: {
+      callIds: [gongCallId],
     },
-    body: JSON.stringify({
-      filter: {
-        callIds: [gongCallId],
+    // Request parties data to get participant information
+    contentSelector: {
+      exposedFields: {
+        parties: true,
       },
-    }),
-  });
+    },
+  };
+
+  console.log(`[Gong] Fetching call metadata for: ${gongCallId}`);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+  } catch (fetchError) {
+    console.error(`[Gong] Fetch error:`, fetchError);
+    throw new Error(`Gong API fetch failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`[Gong] API error (${response.status}):`, errorText);
     throw new Error(`Gong API error (${response.status}): ${errorText}`);
   }
 
@@ -104,23 +121,32 @@ export async function getCallById(gongCallId: string): Promise<GongCallMetadata>
  */
 export async function getTranscriptByCallId(gongCallId: string): Promise<string> {
   const authHeader = getAuthHeader();
-
-  const response = await fetch(`${GONG_BASE_URL}/v2/calls/transcript`, {
-    method: "POST",
-    headers: {
-      Authorization: authHeader,
-      "Content-Type": "application/json",
+  const url = `${GONG_BASE_URL}/v2/calls/transcript`;
+  const requestBody = {
+    filter: {
+      callIds: [gongCallId],
     },
-    body: JSON.stringify({
-      filter: {
-        callIds: [gongCallId],
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify(requestBody),
+    });
+  } catch (fetchError) {
+    console.error(`[Gong] Transcript fetch error:`, fetchError);
+    throw new Error(`Gong transcript API fetch failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gong API error (${response.status}): ${errorText}`);
+    console.error(`[Gong] Transcript API error (${response.status}):`, errorText);
+    throw new Error(`Gong transcript API error (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
@@ -147,8 +173,9 @@ export async function getTranscriptByCallId(gongCallId: string): Promise<string>
  * Returns the first internal participant with an email, or null if not found.
  */
 export function getPrimaryAEEmail(parties: GongParticipant[]): string | null {
+  // Gong API returns affiliation with capital letters (e.g., "Internal", "External")
   const internalParticipants = parties.filter(
-    (p) => p.affiliation === "internal" && p.emailAddress
+    (p) => p.affiliation.toLowerCase() === "internal" && p.emailAddress
   );
 
   if (internalParticipants.length === 0) {
@@ -163,7 +190,8 @@ export function getPrimaryAEEmail(parties: GongParticipant[]): string | null {
  * Helper to get external participant emails
  */
 export function getExternalEmails(parties: GongParticipant[]): string[] {
+  // Gong API returns affiliation with capital letters (e.g., "Internal", "External")
   return parties
-    .filter((p) => p.affiliation === "external" && p.emailAddress)
+    .filter((p) => p.affiliation.toLowerCase() === "external" && p.emailAddress)
     .map((p) => p.emailAddress as string);
 }
