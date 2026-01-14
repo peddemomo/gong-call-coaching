@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Add context JSONB column to email_logs for storing call metadata -->
+    <changeSet id="005-add-email-logs-context" author="system">
+        <addColumn tableName="email_logs">
+            <column name="context" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

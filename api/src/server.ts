@@ -7,6 +7,7 @@ import promptsRouter from "./routes/prompts";
 import emailLogsRouter from "./routes/emailLogs";
 import generateRouter from "./routes/generate";
 import strategiesRouter from "./routes/strategies";
+import userflowWebhookRouter from "./routes/userflowWebhook";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,9 @@ app.use("/aes", aesRouter);
 app.use("/prompt", promptsRouter);
 app.use("/email-logs", emailLogsRouter);
 app.use("/generate", generateRouter);
+
+// Userflow webhook for doctor info requests
+app.use("/userflow-webhook", userflowWebhookRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

@@ -27,6 +27,9 @@ const updatePromptSchema = z.object({
 const generateRequestSchema = z.object({
   ae_email: z.string().email("Invalid email address"),
   gong_call_id: z.string().min(1, "Gong call ID is required"),
+  call_title: z.string().optional(),
+  call_date: z.string().optional(),
+  external_emails: z.array(z.string().email()).optional(),
 });
 
 const moveAESchema = z.object({
@@ -159,6 +162,38 @@ router.post("/:strategyId/aes", async (req: Request, res: Response) => {
     }
     console.error("Error creating AE:", error);
     res.status(500).json({ error: "Failed to create AE" });
+  }
+});
+
+// DELETE /strategies/:strategyId/aes/:aeId - Delete an AE from a strategy
+router.delete("/:strategyId/aes/:aeId", async (req: Request, res: Response) => {
+  try {
+    const { strategyId, aeId } = req.params;
+
+    // Verify AE exists and belongs to this strategy
+    const aeCheck = await pool.query(
+      "SELECT id, email, strategy_id FROM public.aes WHERE id = $1",
+      [aeId]
+    );
+
+    if (aeCheck.rows.length === 0) {
+      res.status(404).json({ error: "AE not found" });
+      return;
+    }
+
+    const ae = aeCheck.rows[0];
+    if (ae.strategy_id !== strategyId) {
+      res.status(404).json({ error: "AE not found in this strategy" });
+      return;
+    }
+
+    // Delete the AE
+    await pool.query("DELETE FROM public.aes WHERE id = $1", [aeId]);
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting AE:", error);
+    res.status(500).json({ error: "Failed to delete AE" });
   }
 });
 
@@ -307,7 +342,7 @@ router.get("/:strategyId/email-logs", async (req: Request, res: Response) => {
     const { strategyId } = req.params;
 
     const result = await pool.query(
-      `SELECT id, ae_email, gong_call_id, status, subject, body, error_message, created_at, strategy_id
+      `SELECT id, ae_email, gong_call_id, status, subject, body, error_message, created_at, strategy_id, context
        FROM public.email_logs
        WHERE strategy_id = $1
        ORDER BY created_at DESC
@@ -335,7 +370,7 @@ router.post("/:strategyId/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    const { ae_email, gong_call_id } = parsed.data;
+    const { ae_email, gong_call_id, call_title, call_date, external_emails } = parsed.data;
 
     // Verify strategy exists
     const strategyCheck = await pool.query(
@@ -355,14 +390,23 @@ router.post("/:strategyId/generate", async (req: Request, res: Response) => {
     );
 
     if (aeCheck.rows.length === 0) {
-      res.status(404).json({ error: "AE not found in this strategy" });
+      res.status(400).json({ 
+        error: "AE not found in this strategy",
+        message: `The AE "${ae_email}" is not assigned to this strategy. Add them first or use the correct strategy.`
+      });
       return;
     }
+
+    // Build context object if any optional fields are provided
+    const context = (call_title || call_date || external_emails)
+      ? { call_title, call_date, external_emails }
+      : undefined;
 
     const emailLog = await generateCoachingEmail({
       ae_email,
       gong_call_id,
       strategy_id: strategyId,
+      context,
     });
 
     res.status(201).json(emailLog);

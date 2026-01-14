@@ -31,6 +31,12 @@ export interface Prompt {
 }
 
 // Email Log types
+export interface CallContext {
+  call_title?: string;
+  call_date?: string;
+  external_emails?: string[];
+}
+
 export interface EmailLog {
   id: string;
   ae_email: string;
@@ -40,6 +46,7 @@ export interface EmailLog {
   body: string;
   error_message: string | null;
   strategy_id: string;
+  context: CallContext | null;
   created_at: string;
 }
 
@@ -101,10 +108,25 @@ export const createAEInStrategy = async (strategyId: string, email: string): Pro
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    // Include existing strategy name in error message for 409 conflicts
+    if (response.status === 409 && error.existing_strategy_name) {
+      throw new Error(`This AE already belongs to "${error.existing_strategy_name}"`);
+    }
     throw new Error(error.error || `Failed to create AE: ${response.statusText}`);
   }
 
   return response.json();
+};
+
+export const deleteAEFromStrategy = async (strategyId: string, aeId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/aes/${aeId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to delete AE: ${response.statusText}`);
+  }
 };
 
 // ============ Strategy-scoped Prompt API ============
@@ -156,17 +178,24 @@ export const getEmailLogsByStrategy = async (strategyId: string): Promise<EmailL
 
 // ============ Strategy-scoped Generate API ============
 
+export interface GenerateEmailRequest {
+  ae_email: string;
+  gong_call_id: string;
+  call_title?: string;
+  call_date?: string;
+  external_emails?: string[];
+}
+
 export const generateEmailByStrategy = async (
   strategyId: string,
-  ae_email: string,
-  gong_call_id: string
+  request: GenerateEmailRequest
 ): Promise<EmailLog> => {
   const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ ae_email, gong_call_id }),
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {
@@ -243,12 +272,12 @@ export const getEmailLogs = async (): Promise<EmailLog[]> => {
   const response = await fetch(`${API_BASE_URL}/email-logs`, {
     method: "GET",
   });
-
+  
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || `Failed to fetch email logs: ${response.statusText}`);
   }
-
+  
   return response.json();
 };
 

@@ -3,10 +3,17 @@ import pool from "../db/pool";
 // Default strategy ID for backward compatibility
 export const DEFAULT_STRATEGY_ID = "00000000-0000-0000-0000-000000000001";
 
+export interface CallContext {
+  call_title?: string;
+  call_date?: string;
+  external_emails?: string[];
+}
+
 export interface GenerateEmailInput {
   ae_email: string;
   gong_call_id: string;
   strategy_id?: string;
+  context?: CallContext;
 }
 
 export interface EmailLogRow {
@@ -19,6 +26,7 @@ export interface EmailLogRow {
   error_message: string | null;
   created_at: string;
   strategy_id: string;
+  context: CallContext | null;
 }
 
 export class DuplicateEmailError extends Error {
@@ -31,7 +39,7 @@ export class DuplicateEmailError extends Error {
 export async function generateCoachingEmail(
   input: GenerateEmailInput
 ): Promise<EmailLogRow> {
-  const { ae_email, gong_call_id, strategy_id = DEFAULT_STRATEGY_ID } = input;
+  const { ae_email, gong_call_id, strategy_id = DEFAULT_STRATEGY_ID, context } = input;
 
   // TODO: Fetch the active prompt and use it with OpenAI
   // For now, generate a placeholder that simulates AI coaching output
@@ -49,10 +57,10 @@ The actual implementation will:
   // Insert into email_logs with idempotency check
   try {
     const result = await pool.query(
-      `INSERT INTO public.email_logs (ae_email, gong_call_id, status, subject, body, error_message, strategy_id, created_at)
-       VALUES ($1, $2, 'queued', $3, $4, NULL, $5, NOW())
+      `INSERT INTO public.email_logs (ae_email, gong_call_id, status, subject, body, error_message, strategy_id, context, created_at)
+       VALUES ($1, $2, 'queued', $3, $4, NULL, $5, $6, NOW())
        RETURNING *`,
-      [ae_email, gong_call_id, subject, body, strategy_id]
+      [ae_email, gong_call_id, subject, body, strategy_id, context ? JSON.stringify(context) : null]
     );
 
     return result.rows[0];
@@ -63,9 +71,7 @@ The actual implementation will:
       "code" in error &&
       (error as { code: string }).code === "23505"
     ) {
-      throw new DuplicateEmailError(
-        `Already generated for this AE and call: ${ae_email}, ${gong_call_id}`
-      );
+      throw new DuplicateEmailError("Already generated for this call");
     }
     throw error;
   }

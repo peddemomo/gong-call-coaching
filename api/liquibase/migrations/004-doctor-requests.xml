@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Create doctor_requests table to log all doctor info requests -->
+    <changeSet id="004-create-doctor-requests-table" author="system">
+        <createTable tableName="doctor_requests">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="doctor_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_email" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="TEXT"/>
+            <column name="user_name" type="TEXT"/>
+            <column name="matching_doctors_count" type="INTEGER" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="raw_payload" type="JSONB"/>
+            <column name="status" type="TEXT" defaultValue="received">
+                <constraints nullable="false"/>
+            </column>
+            <column name="notes" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="processed_at" type="TIMESTAMPTZ"/>
+        </createTable>
+
+        <!-- Index for querying by user email -->
+        <createIndex tableName="doctor_requests" indexName="idx_doctor_requests_user_email">
+            <column name="user_email"/>
+        </createIndex>
+
+        <!-- Index for querying by status -->
+        <createIndex tableName="doctor_requests" indexName="idx_doctor_requests_status">
+            <column name="status"/>
+        </createIndex>
+
+        <!-- Index for querying by created_at for sorting -->
+        <createIndex tableName="doctor_requests" indexName="idx_doctor_requests_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

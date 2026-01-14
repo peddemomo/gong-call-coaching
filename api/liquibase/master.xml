@@ -9,6 +9,8 @@
     <include file="migrations/001-initial-schema.xml"/>
     <include file="migrations/002-add-strategies.xml"/>
     <include file="migrations/003-global-ae-uniqueness.xml"/>
+    <include file="migrations/004-doctor-requests.xml"/>
+    <include file="migrations/005-email-logs-context.xml"/>
 
 </databaseChangeLog>
 
