@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Add classifier decision and skip_reason columns to email_logs -->
+    <changeSet id="006-add-email-logs-decision" author="system">
+        <addColumn tableName="email_logs">
+            <column name="decision" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="006-add-email-logs-skip-reason" author="system">
+        <addColumn tableName="email_logs">
+            <column name="skip_reason" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

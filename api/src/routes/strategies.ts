@@ -5,6 +5,13 @@ import {
   generateCoachingEmail,
   DuplicateEmailError,
 } from "../services/generateCoachingEmail";
+import { classifyCallEligibility } from "../services/classifyCallEligibility";
+import {
+  getCallById,
+  getTranscriptByCallId,
+  getPrimaryAEEmail,
+  getExternalEmails,
+} from "../integrations/gong/client";
 
 const router = Router();
 
@@ -30,10 +37,15 @@ const generateRequestSchema = z.object({
   call_title: z.string().optional(),
   call_date: z.string().optional(),
   external_emails: z.array(z.string().email()).optional(),
+  transcript: z.string().optional(),
 });
 
 const moveAESchema = z.object({
   strategy_id: z.string().uuid("Invalid strategy ID"),
+});
+
+const testCallSchema = z.object({
+  gong_call_id: z.string().min(1, "Gong call ID is required"),
 });
 
 // GET /strategies - List all strategies
@@ -342,7 +354,7 @@ router.get("/:strategyId/email-logs", async (req: Request, res: Response) => {
     const { strategyId } = req.params;
 
     const result = await pool.query(
-      `SELECT id, ae_email, gong_call_id, status, subject, body, error_message, created_at, strategy_id, context
+      `SELECT id, ae_email, gong_call_id, status, subject, body, error_message, created_at, strategy_id, context, decision, skip_reason, is_test, test_run_id
        FROM public.email_logs
        WHERE strategy_id = $1
        ORDER BY created_at DESC
@@ -370,7 +382,7 @@ router.post("/:strategyId/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    const { ae_email, gong_call_id, call_title, call_date, external_emails } = parsed.data;
+    const { ae_email, gong_call_id, call_title, call_date, external_emails, transcript } = parsed.data;
 
     // Verify strategy exists
     const strategyCheck = await pool.query(
@@ -397,16 +409,46 @@ router.post("/:strategyId/generate", async (req: Request, res: Response) => {
       return;
     }
 
-    // Build context object if any optional fields are provided
-    const context = (call_title || call_date || external_emails)
-      ? { call_title, call_date, external_emails }
+    // Run the classifier to determine if this call should receive coaching
+    const decision = classifyCallEligibility({
+      call_title,
+      external_emails,
+      transcript,
+    });
+
+    // Build context object (include transcript for reference)
+    const context = (call_title || call_date || external_emails || transcript)
+      ? { call_title, call_date, external_emails, transcript }
       : undefined;
 
+    // If classifier says skip, insert a skipped record and return
+    if (!decision.should_send) {
+      const emailLog = await generateCoachingEmail({
+        ae_email,
+        gong_call_id,
+        strategy_id: strategyId,
+        context,
+        decision,
+        skipped: true,
+        skip_reason: decision.reason,
+      });
+
+      res.status(200).json({ 
+        skipped: true, 
+        reason: decision.reason, 
+        decision,
+        email_log: emailLog,
+      });
+      return;
+    }
+
+    // Proceed with generation
     const emailLog = await generateCoachingEmail({
       ae_email,
       gong_call_id,
       strategy_id: strategyId,
       context,
+      decision,
     });
 
     res.status(201).json(emailLog);
@@ -418,6 +460,152 @@ router.post("/:strategyId/generate", async (req: Request, res: Response) => {
 
     console.error("Error generating coaching email:", error);
     res.status(500).json({ error: "Failed to generate coaching email" });
+  }
+});
+
+// POST /strategies/:strategyId/test-call - Run a test call through the full pipeline (never sends email)
+router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
+  try {
+    const { strategyId } = req.params;
+    const parsed = testCallSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Validation failed",
+        details: parsed.error.errors,
+      });
+      return;
+    }
+
+    const { gong_call_id } = parsed.data;
+
+    // Verify strategy exists
+    const strategyCheck = await pool.query(
+      "SELECT id, name FROM public.strategies WHERE id = $1",
+      [strategyId]
+    );
+
+    if (strategyCheck.rows.length === 0) {
+      res.status(404).json({ error: "Strategy not found" });
+      return;
+    }
+
+    // Step 1: Fetch call metadata + transcript from Gong
+    let callMetadata;
+    let transcript;
+    try {
+      callMetadata = await getCallById(gong_call_id);
+      transcript = await getTranscriptByCallId(gong_call_id);
+    } catch (gongError) {
+      const message = gongError instanceof Error ? gongError.message : "Unknown Gong API error";
+      res.status(400).json({
+        error: "Failed to fetch call from Gong",
+        details: message,
+      });
+      return;
+    }
+
+    // Step 2: Determine primary AE email (call owner / primary internal participant)
+    const ae_email = getPrimaryAEEmail(callMetadata.parties);
+
+    if (!ae_email) {
+      res.status(200).json({
+        skipped: true,
+        reason: "No internal participant found in call",
+        gong_call_id,
+        call_title: callMetadata.title,
+      });
+      return;
+    }
+
+    // Step 3: Check AE exists in DB and belongs to this strategyId
+    const aeCheck = await pool.query(
+      "SELECT id, email, strategy_id FROM public.aes WHERE email = $1",
+      [ae_email]
+    );
+
+    if (aeCheck.rows.length === 0) {
+      res.status(200).json({
+        skipped: true,
+        reason: "AE not configured in this strategy",
+        ae_email,
+        gong_call_id,
+        call_title: callMetadata.title,
+      });
+      return;
+    }
+
+    const aeRecord = aeCheck.rows[0];
+    if (aeRecord.strategy_id !== strategyId) {
+      res.status(200).json({
+        skipped: true,
+        reason: "AE belongs to different strategy",
+        ae_email,
+        current_strategy_id: aeRecord.strategy_id,
+        gong_call_id,
+        call_title: callMetadata.title,
+      });
+      return;
+    }
+
+    // Step 4: Build input object for classifier
+    const external_emails = getExternalEmails(callMetadata.parties);
+    const call_title = callMetadata.title;
+    const call_date = callMetadata.started;
+
+    // Step 5: Run classifyCallEligibility
+    const decision = classifyCallEligibility({
+      call_title,
+      external_emails,
+      transcript,
+    });
+
+    // Build context object
+    const context = {
+      call_title,
+      call_date,
+      external_emails,
+      transcript,
+    };
+
+    // Step 6: Handle based on classifier decision
+    if (!decision.should_send) {
+      // Insert skipped test row
+      const emailLog = await generateCoachingEmail({
+        ae_email,
+        gong_call_id,
+        strategy_id: strategyId,
+        context,
+        decision,
+        skipped: true,
+        skip_reason: decision.reason,
+        is_test: true,
+      });
+
+      res.status(200).json({
+        skipped: true,
+        reason: decision.reason,
+        decision,
+        ae_email,
+        email_log: emailLog,
+      });
+      return;
+    }
+
+    // Step 7: Generate output (test mode - never sends)
+    const emailLog = await generateCoachingEmail({
+      ae_email,
+      gong_call_id,
+      strategy_id: strategyId,
+      context,
+      decision,
+      is_test: true,
+    });
+
+    res.status(201).json(emailLog);
+  } catch (error) {
+    console.error("Error running test call:", error);
+    res.status(500).json({ error: "Failed to run test call" });
   }
 });
 

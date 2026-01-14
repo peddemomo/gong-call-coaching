@@ -35,19 +35,54 @@ export interface CallContext {
   call_title?: string;
   call_date?: string;
   external_emails?: string[];
+  transcript?: string;
+}
+
+export type CallType = 
+  | "new_business"
+  | "expansion"
+  | "renewal"
+  | "support"
+  | "internal"
+  | "partner"
+  | "unknown";
+
+export interface ClassifierDecision {
+  should_send: boolean;
+  call_type: CallType;
+  confidence: number;
+  reason: string;
 }
 
 export interface EmailLog {
   id: string;
   ae_email: string;
   gong_call_id: string;
-  status: "sent" | "failed" | "queued" | "skipped";
-  subject: string;
-  body: string;
+  status: "sent" | "failed" | "queued" | "skipped" | "generated";
+  subject: string | null;
+  body: string | null;
   error_message: string | null;
   strategy_id: string;
   context: CallContext | null;
+  decision: ClassifierDecision | null;
+  skip_reason: string | null;
+  is_test: boolean;
+  test_run_id: string;
   created_at: string;
+}
+
+export interface GenerateResponse {
+  skipped?: boolean;
+  reason?: string;
+  decision?: ClassifierDecision;
+  email_log?: EmailLog;
+  // If not skipped, the response is the EmailLog itself
+  id?: string;
+  ae_email?: string;
+  gong_call_id?: string;
+  status?: string;
+  subject?: string | null;
+  body?: string | null;
 }
 
 // ============ Strategy API ============
@@ -184,12 +219,34 @@ export interface GenerateEmailRequest {
   call_title?: string;
   call_date?: string;
   external_emails?: string[];
+  transcript?: string;
+}
+
+export interface TestCallRequest {
+  gong_call_id: string;
+}
+
+export interface TestCallResponse {
+  skipped?: boolean;
+  reason?: string;
+  decision?: ClassifierDecision;
+  ae_email?: string;
+  current_strategy_id?: string;
+  gong_call_id?: string;
+  call_title?: string;
+  email_log?: EmailLog;
+  // If successful generation, the response is the EmailLog itself
+  id?: string;
+  status?: string;
+  subject?: string | null;
+  body?: string | null;
+  is_test?: boolean;
 }
 
 export const generateEmailByStrategy = async (
   strategyId: string,
   request: GenerateEmailRequest
-): Promise<EmailLog> => {
+): Promise<GenerateResponse> => {
   const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/generate`, {
     method: "POST",
     headers: {
@@ -201,6 +258,28 @@ export const generateEmailByStrategy = async (
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || `Failed to generate email: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// ============ Test Call API ============
+
+export const runTestCall = async (
+  strategyId: string,
+  gongCallId: string
+): Promise<TestCallResponse> => {
+  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/test-call`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ gong_call_id: gongCallId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || error.details || `Failed to run test call: ${response.statusText}`);
   }
 
   return response.json();

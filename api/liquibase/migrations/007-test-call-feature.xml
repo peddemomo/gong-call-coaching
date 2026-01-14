@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Add is_test column to email_logs -->
+    <changeSet id="007-add-email-logs-is-test" author="system">
+        <addColumn tableName="email_logs">
+            <column name="is_test" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- Add test_run_id column to email_logs -->
+    <changeSet id="007-add-email-logs-test-run-id" author="system">
+        <addColumn tableName="email_logs">
+            <column name="test_run_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- Drop the existing unique constraint on (ae_email, gong_call_id) -->
+    <changeSet id="007-drop-email-logs-unique-constraint" author="system">
+        <dropUniqueConstraint 
+            tableName="email_logs" 
+            constraintName="email_logs_ae_email_gong_call_id_unique"/>
+    </changeSet>
+
+    <!-- Create partial unique index only for non-test rows -->
+    <!-- This enforces uniqueness for production rows while allowing test runs to be repeated -->
+    <changeSet id="007-create-email-logs-partial-unique-index" author="system">
+        <sql>
+            CREATE UNIQUE INDEX email_logs_ae_email_gong_call_id_non_test_unique 
+            ON email_logs (ae_email, gong_call_id) 
+            WHERE is_test = false;
+        </sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS email_logs_ae_email_gong_call_id_non_test_unique;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -14,6 +14,9 @@ import {
   EmailLog,
   generateEmailByStrategy,
   GenerateEmailRequest,
+  GenerateResponse,
+  runTestCall,
+  TestCallResponse,
 } from "./api/client";
 
 function App() {
@@ -176,11 +179,17 @@ function App() {
   }, [selectedLog]);
 
   // Generate email mutation (strategy-scoped)
-  const [generateMessage, setGenerateMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [generateMessage, setGenerateMessage] = useState<{ type: "success" | "error" | "skipped"; text: string } | null>(null);
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [generateModalAE, setGenerateModalAE] = useState<string | null>(null);
   const [generateCallId, setGenerateCallId] = useState("");
   const [generateCallTitle, setGenerateCallTitle] = useState("");
+  const [generateExternalEmails, setGenerateExternalEmails] = useState("");
+  const [generateTranscript, setGenerateTranscript] = useState("");
+
+  // Test Call state
+  const [testCallId, setTestCallId] = useState("");
+  const [testCallMessage, setTestCallMessage] = useState<{ type: "success" | "error" | "skipped"; text: string; details?: string } | null>(null);
 
   const generateMutation = useMutation({
     mutationFn: ({
@@ -190,30 +199,76 @@ function App() {
       strategyId: string;
       request: GenerateEmailRequest;
     }) => generateEmailByStrategy(strategyId, request),
-    onSuccess: () => {
+    onSuccess: (response: GenerateResponse) => {
       queryClient.invalidateQueries({ queryKey: ["emailLogs", selectedStrategyId] });
-      setGenerateMessage({ type: "success", text: "Email generated successfully!" });
+      if (response.skipped) {
+        setGenerateMessage({ type: "skipped", text: `Skipped: ${response.reason}` });
+      } else {
+        setGenerateMessage({ type: "success", text: "Email queued for generation!" });
+      }
       setGeneratingFor(null);
       setGenerateModalAE(null);
       setGenerateCallId("");
       setGenerateCallTitle("");
-      setTimeout(() => setGenerateMessage(null), 3000);
+      setGenerateExternalEmails("");
+      setGenerateTranscript("");
+      setTimeout(() => setGenerateMessage(null), 5000);
     },
     onError: (err: Error) => {
-      const isAlreadyGenerated = err.message.includes("Already generated");
+      const isAlreadyGenerated = err.message.includes("Already") || err.message.includes("already");
       setGenerateMessage({
         type: "error",
-        text: isAlreadyGenerated ? "Already generated for this call" : err.message,
+        text: isAlreadyGenerated ? "Already processed for this call" : err.message,
       });
       setGeneratingFor(null);
       setTimeout(() => setGenerateMessage(null), 3000);
     },
   });
 
+  // Test Call mutation
+  const testCallMutation = useMutation({
+    mutationFn: ({ strategyId, gongCallId }: { strategyId: string; gongCallId: string }) =>
+      runTestCall(strategyId, gongCallId),
+    onSuccess: (response: TestCallResponse) => {
+      queryClient.invalidateQueries({ queryKey: ["emailLogs", selectedStrategyId] });
+      if (response.skipped) {
+        setTestCallMessage({
+          type: "skipped",
+          text: `Skipped: ${response.reason}`,
+          details: response.ae_email ? `AE: ${response.ae_email}` : undefined,
+        });
+      } else {
+        setTestCallMessage({
+          type: "success",
+          text: "Test call completed! Email generated (not sent).",
+          details: response.ae_email ? `AE: ${response.ae_email}` : undefined,
+        });
+      }
+      setTestCallId("");
+      setTimeout(() => setTestCallMessage(null), 8000);
+    },
+    onError: (err: Error) => {
+      setTestCallMessage({
+        type: "error",
+        text: err.message,
+      });
+      setTimeout(() => setTestCallMessage(null), 5000);
+    },
+  });
+
+  const handleTestCall = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStrategyId || !testCallId.trim()) return;
+    setTestCallMessage(null);
+    testCallMutation.mutate({ strategyId: selectedStrategyId, gongCallId: testCallId.trim() });
+  };
+
   const handleOpenGenerateModal = (ae_email: string) => {
     setGenerateModalAE(ae_email);
     setGenerateCallId("");
     setGenerateCallTitle("");
+    setGenerateExternalEmails("");
+    setGenerateTranscript("");
   };
 
   const handleSubmitGenerate = (e: React.FormEvent) => {
@@ -221,12 +276,21 @@ function App() {
     if (!selectedStrategyId || !generateModalAE || !generateCallId.trim()) return;
     setGeneratingFor(generateModalAE);
     setGenerateMessage(null);
+    
+    // Parse external emails from comma-separated string
+    const externalEmailsArray = generateExternalEmails
+      .split(",")
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0);
+
     generateMutation.mutate({
       strategyId: selectedStrategyId,
       request: {
         ae_email: generateModalAE,
         gong_call_id: generateCallId.trim(),
         call_title: generateCallTitle.trim() || undefined,
+        external_emails: externalEmailsArray.length > 0 ? externalEmailsArray : undefined,
+        transcript: generateTranscript.trim() || undefined,
       },
     });
   };
@@ -463,8 +527,14 @@ function App() {
                   padding: "0.75rem 1rem",
                   marginBottom: "1rem",
                   borderRadius: "4px",
-                  backgroundColor: generateMessage.type === "success" ? "#e6f4ea" : "#fff0f0",
-                  color: generateMessage.type === "success" ? "#1e7e34" : "#cc0000",
+                  backgroundColor: 
+                    generateMessage.type === "success" ? "#e6f4ea" : 
+                    generateMessage.type === "skipped" ? "#fff8e6" : 
+                    "#fff0f0",
+                  color: 
+                    generateMessage.type === "success" ? "#1e7e34" : 
+                    generateMessage.type === "skipped" ? "#b36b00" : 
+                    "#cc0000",
                 }}
               >
                 {generateMessage.text}
@@ -563,6 +633,92 @@ function App() {
                 )}
               </>
             )}
+          </section>
+
+          {/* Test Call Section */}
+          <section
+            style={{
+              marginTop: "3rem",
+              padding: "1.5rem",
+              backgroundColor: "#fafbfc",
+              borderRadius: "8px",
+              border: "1px solid #e1e4e8",
+            }}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: "1rem" }}>
+              Test Call{" "}
+              <span style={{ fontWeight: 400, color: "#666", fontSize: "0.875rem" }}>
+                (dry-run, never sends email)
+              </span>
+            </h2>
+            <form onSubmit={handleTestCall} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ flex: "1", minWidth: "200px", maxWidth: "400px" }}>
+                <input
+                  type="text"
+                  placeholder="Enter Gong Call ID"
+                  value={testCallId}
+                  onChange={(e) => setTestCallId(e.target.value)}
+                  disabled={testCallMutation.isPending}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    fontSize: "1rem",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={testCallMutation.isPending || !testCallId.trim()}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "1rem",
+                  backgroundColor: "#6f42c1",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: testCallMutation.isPending || !testCallId.trim() ? "not-allowed" : "pointer",
+                  opacity: testCallMutation.isPending || !testCallId.trim() ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {testCallMutation.isPending ? "Running..." : "Run Test"}
+              </button>
+            </form>
+            {testCallMessage && (
+              <div
+                style={{
+                  marginTop: "1rem",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "4px",
+                  backgroundColor:
+                    testCallMessage.type === "success"
+                      ? "#e6f4ea"
+                      : testCallMessage.type === "skipped"
+                      ? "#fff8e6"
+                      : "#fff0f0",
+                  color:
+                    testCallMessage.type === "success"
+                      ? "#1e7e34"
+                      : testCallMessage.type === "skipped"
+                      ? "#b36b00"
+                      : "#cc0000",
+                }}
+              >
+                <div>{testCallMessage.text}</div>
+                {testCallMessage.details && (
+                  <div style={{ fontSize: "0.875rem", marginTop: "0.25rem", opacity: 0.8 }}>
+                    {testCallMessage.details}
+                  </div>
+                )}
+              </div>
+            )}
+            <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.8rem", color: "#666" }}>
+              Runs the full pipeline: fetch from Gong → find AE → classify → generate output.
+              Test runs can be repeated any number of times for prompt iteration.
+            </p>
           </section>
 
           {/* Prompt Section */}
@@ -671,7 +827,26 @@ function App() {
                             {log.gong_call_id}
                           </td>
                           <td style={{ padding: "0.75rem" }}>
-                            <StatusBadge status={log.status} />
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <StatusBadge status={log.status} />
+                              {log.is_test && (
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "0.2rem 0.4rem",
+                                    borderRadius: "4px",
+                                    fontSize: "0.65rem",
+                                    fontWeight: 600,
+                                    backgroundColor: "#f3e8ff",
+                                    color: "#6f42c1",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.5px",
+                                  }}
+                                >
+                                  TEST
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: "0.75rem", color: "#666" }}>
                             {new Date(log.created_at).toLocaleString()}
@@ -745,6 +920,8 @@ function App() {
               setGenerateModalAE(null);
               setGenerateCallId("");
               setGenerateCallTitle("");
+              setGenerateExternalEmails("");
+              setGenerateTranscript("");
             }
           }}
         >
@@ -753,8 +930,10 @@ function App() {
               backgroundColor: "white",
               borderRadius: "8px",
               padding: "1.5rem",
-              maxWidth: "450px",
+              maxWidth: "550px",
               width: "90%",
+              maxHeight: "85vh",
+              overflow: "auto",
               boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
             }}
           >
@@ -765,6 +944,8 @@ function App() {
                   setGenerateModalAE(null);
                   setGenerateCallId("");
                   setGenerateCallTitle("");
+                  setGenerateExternalEmails("");
+                  setGenerateTranscript("");
                 }}
                 style={{
                   background: "none",
@@ -809,7 +990,7 @@ function App() {
                 />
               </div>
 
-              <div style={{ marginBottom: "1.5rem" }}>
+              <div style={{ marginBottom: "1rem" }}>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
                   Call Title <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
                 </label>
@@ -830,6 +1011,56 @@ function App() {
                 />
               </div>
 
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
+                  External Emails <span style={{ color: "#999", fontWeight: 400 }}>(comma-separated, optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={generateExternalEmails}
+                  onChange={(e) => setGenerateExternalEmails(e.target.value)}
+                  placeholder="e.g., client@acme.com, buyer@acme.com"
+                  disabled={generateMutation.isPending}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    fontSize: "1rem",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.75rem", color: "#666" }}>
+                  Helps the classifier determine if this is an external sales call
+                </p>
+              </div>
+
+              <div style={{ marginBottom: "1.5rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
+                  Transcript <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
+                </label>
+                <textarea
+                  value={generateTranscript}
+                  onChange={(e) => setGenerateTranscript(e.target.value)}
+                  placeholder="Paste call transcript here for better classification..."
+                  disabled={generateMutation.isPending}
+                  rows={4}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    fontSize: "0.875rem",
+                    fontFamily: "monospace",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    boxSizing: "border-box",
+                    resize: "vertical",
+                  }}
+                />
+                <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.75rem", color: "#666" }}>
+                  The classifier looks for sales keywords (pricing, demo, proposal, etc.)
+                </p>
+              </div>
+
               <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
                 <button
                   type="button"
@@ -837,6 +1068,8 @@ function App() {
                     setGenerateModalAE(null);
                     setGenerateCallId("");
                     setGenerateCallTitle("");
+                    setGenerateExternalEmails("");
+                    setGenerateTranscript("");
                   }}
                   disabled={generateMutation.isPending}
                   style={{
@@ -865,7 +1098,7 @@ function App() {
                     opacity: generateMutation.isPending || !generateCallId.trim() ? 0.6 : 1,
                   }}
                 >
-                  {generateMutation.isPending ? "Generating..." : "Generate"}
+                  {generateMutation.isPending ? "Processing..." : "Generate"}
                 </button>
               </div>
             </form>
@@ -882,6 +1115,7 @@ function StatusBadge({ status }: { status: EmailLog["status"] }) {
     failed: { bg: "#fce8e6", color: "#c5221f" },
     queued: { bg: "#e8f0fe", color: "#1a73e8" },
     skipped: { bg: "#f5f5f5", color: "#666" },
+    generated: { bg: "#e6f4ea", color: "#1e7e34" },
   };
 
   const style = styles[status] || styles.queued;
@@ -905,10 +1139,11 @@ function StatusBadge({ status }: { status: EmailLog["status"] }) {
 }
 
 function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void }) {
-  const [copiedField, setCopiedField] = useState<"subject" | "body" | null>(null);
+  const [copiedField, setCopiedField] = useState<"subject" | "body" | "decision" | null>(null);
   const [showContext, setShowContext] = useState(false);
+  const [showDecision, setShowDecision] = useState(false);
 
-  const handleCopy = async (text: string, field: "subject" | "body") => {
+  const handleCopy = async (text: string, field: "subject" | "body" | "decision") => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedField(field);
@@ -921,6 +1156,8 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
   const displayValue = (value: string | null | undefined) => {
     return value && value.trim() ? value : "(empty)";
   };
+
+  const isSkipped = log.status === "skipped";
 
   return (
     <div
@@ -954,7 +1191,27 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
       >
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-          <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Email Details</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Email Details</h3>
+            <StatusBadge status={log.status} />
+            {log.is_test && (
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "4px",
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  backgroundColor: "#f3e8ff",
+                  color: "#6f42c1",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                TEST
+              </span>
+            )}
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -970,6 +1227,25 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
             ×
           </button>
         </div>
+
+        {/* Skip Reason (prominent when skipped) */}
+        {isSkipped && log.skip_reason && (
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "#fff8e6",
+              borderRadius: "8px",
+              border: "1px solid #ffd666",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "1.25rem" }}>⚠️</span>
+              <strong style={{ color: "#b36b00" }}>Skipped</strong>
+            </div>
+            <p style={{ margin: 0, color: "#8c5a00" }}>{log.skip_reason}</p>
+          </div>
+        )}
 
         {/* Subject */}
         <div style={{ marginBottom: "1rem" }}>
@@ -1040,7 +1316,7 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
               wordBreak: "break-word",
               fontFamily: "monospace",
               fontSize: "0.875rem",
-              maxHeight: "400px",
+              maxHeight: "300px",
               overflow: "auto",
               color: log.body ? "#333" : "#999",
             }}
@@ -1048,6 +1324,118 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
             {displayValue(log.body)}
           </pre>
         </div>
+
+        {/* Classifier Decision (collapsible) */}
+        {log.decision && (
+          <div style={{ marginBottom: "1rem" }}>
+            <button
+              onClick={() => setShowDecision(!showDecision)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 0",
+                fontSize: "0.875rem",
+                color: "#0066cc",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 500,
+              }}
+            >
+              <span style={{ transform: showDecision ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                ▶
+              </span>
+              Classifier Decision
+            </button>
+            {showDecision && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <span
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        backgroundColor: log.decision.should_send ? "#e6f4ea" : "#fce8e6",
+                        color: log.decision.should_send ? "#1e7e34" : "#c5221f",
+                      }}
+                    >
+                      {log.decision.should_send ? "Should Send" : "Should Skip"}
+                    </span>
+                    <span
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        backgroundColor: "#e8f0fe",
+                        color: "#1a73e8",
+                      }}
+                    >
+                      {log.decision.call_type}
+                    </span>
+                    <span
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        backgroundColor: "#f5f5f5",
+                        color: "#666",
+                      }}
+                    >
+                      {Math.round(log.decision.confidence * 100)}% confidence
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleCopy(JSON.stringify(log.decision, null, 2), "decision")}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      fontSize: "0.7rem",
+                      backgroundColor: copiedField === "decision" ? "#e6f4ea" : "#f0f0f0",
+                      color: copiedField === "decision" ? "#1e7e34" : "#333",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {copiedField === "decision" ? "Copied!" : "Copy JSON"}
+                  </button>
+                </div>
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <strong>Reason:</strong> {log.decision.reason}
+                </div>
+                <details>
+                  <summary style={{ cursor: "pointer", color: "#666", fontSize: "0.8rem" }}>
+                    Raw JSON
+                  </summary>
+                  <pre
+                    style={{
+                      margin: "0.5rem 0 0 0",
+                      padding: "0.5rem",
+                      backgroundColor: "#fff",
+                      borderRadius: "4px",
+                      fontSize: "0.75rem",
+                      overflow: "auto",
+                      maxHeight: "150px",
+                    }}
+                  >
+                    {JSON.stringify(log.decision, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Context (collapsible) */}
         {log.context && Object.keys(log.context).length > 0 && (
@@ -1092,8 +1480,27 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
                   </div>
                 )}
                 {log.context.external_emails && log.context.external_emails.length > 0 && (
-                  <div>
+                  <div style={{ marginBottom: "0.5rem" }}>
                     <strong>External Emails:</strong> {log.context.external_emails.join(", ")}
+                  </div>
+                )}
+                {log.context.transcript && (
+                  <div>
+                    <strong>Transcript:</strong>
+                    <pre
+                      style={{
+                        margin: "0.25rem 0 0 0",
+                        padding: "0.5rem",
+                        backgroundColor: "#fff",
+                        borderRadius: "4px",
+                        fontSize: "0.8rem",
+                        maxHeight: "150px",
+                        overflow: "auto",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {log.context.transcript}
+                    </pre>
                   </div>
                 )}
               </div>

@@ -16,12 +16,32 @@ docker compose --profile tools run --rm liquibase update
 
 ```bash
 cd api
-cp .env.example .env
 npm install
 npm run dev
 ```
 
 The API will be running at http://localhost:3000
+
+#### API Environment Variables
+
+Create an `api/.env` file with the following:
+
+```
+# Database connection
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/gong_coaching
+
+# Frontend URL for CORS
+FRONTEND_URL=http://localhost:5173
+
+# Server port
+PORT=3000
+
+# Gong API credentials (required for test-call feature)
+# Get these from Gong Admin > Company Settings > Ecosystem > API
+GONG_ACCESS_KEY=your_gong_access_key
+GONG_ACCESS_SECRET=your_gong_access_secret
+GONG_BASE_URL=https://api.gong.io
+```
 
 ### 3. Start the Web App
 
@@ -80,9 +100,42 @@ The backend API is a Node + Express + TypeScript server.
 - `PUT /strategies/:strategyId/prompt` - Update prompt for strategy
 - `GET /strategies/:strategyId/email-logs` - List email logs for strategy
 - `POST /strategies/:strategyId/generate` - Generate email for AE in strategy
-  - Body: `{ "ae_email": "user@example.com", "gong_call_id": "call_123", "call_title?": "Discovery Call", "call_date?": "2025-01-14", "external_emails?": ["client@example.com"] }`
+  - Body: `{ "ae_email": "user@example.com", "gong_call_id": "call_123", "call_title?": "Discovery Call", "call_date?": "2025-01-14", "external_emails?": ["client@example.com"], "transcript?": "..." }`
+  - Runs call eligibility classifier to determine if call should receive coaching
+  - Returns 200 with `{ skipped: true, reason, decision }` if classifier skips
+  - Returns 201 with email_log row if classifier approves (status: "queued")
   - Returns 400 if AE not in this strategy
-  - Returns 409 if already generated for this call
+  - Returns 409 if already processed for this call
+- `POST /strategies/:strategyId/test-call` - Run a test call through the full pipeline (dry-run)
+  - Body: `{ "gong_call_id": "1234567890" }`
+  - Fetches call metadata + transcript from Gong API
+  - Determines primary AE from internal participants
+  - Verifies AE belongs to this strategy
+  - Runs classifier and generates output
+  - **NEVER sends email** - creates email_log with `is_test=true` and `status='generated'`
+  - Test runs can be repeated unlimited times for prompt iteration
+  - Returns 200 with `{ skipped: true, reason, ae_email }` if AE not found or belongs to different strategy
+  - Returns 200 with `{ skipped: true, reason, decision }` if classifier skips
+  - Returns 201 with email_log row if generation succeeds
+
+### Call Eligibility Classifier
+
+The generate endpoint includes a call eligibility classifier that determines whether a call should receive coaching. Currently uses placeholder rules:
+
+- **Skips** if no external emails (internal call)
+- **Skips** if call title contains internal keywords (standup, interview, etc.)
+- **Queues** if transcript contains sales keywords (pricing, demo, proposal, etc.)
+- **Skips** if no clear sales indicators found
+
+The classifier returns:
+```json
+{
+  "should_send": true|false,
+  "call_type": "new_business"|"expansion"|"renewal"|"support"|"internal"|"partner"|"unknown",
+  "confidence": 0.0-1.0,
+  "reason": "Human readable explanation"
+}
+```
 
 ### Testing with curl
 
@@ -129,18 +182,56 @@ curl -X POST http://localhost:3000/strategies/00000000-0000-0000-0000-0000000000
   -H "Content-Type: application/json" \
   -d '{"email": "jane@example.com"}'
 
-# Generate email for AE in strategy (with optional context)
+# Generate email - example that QUEUES (has external emails + sales transcript)
 curl -X POST http://localhost:3000/strategies/00000000-0000-0000-0000-000000000001/generate \
   -H "Content-Type: application/json" \
   -d '{
     "ae_email": "jane@example.com",
-    "gong_call_id": "1234567890",
+    "gong_call_id": "call_001",
     "call_title": "Discovery Call with Acme Corp",
-    "call_date": "2025-01-14"
+    "call_date": "2025-01-14",
+    "external_emails": ["buyer@acme.com", "cto@acme.com"],
+    "transcript": "Thanks for joining the demo today. Let me walk you through our pricing options and discuss next steps for the proposal."
   }'
+# Returns: { id, status: "queued", decision: { should_send: true, call_type: "new_business", ... } }
+
+# Generate email - example that SKIPS (no external emails - internal call)
+curl -X POST http://localhost:3000/strategies/00000000-0000-0000-0000-000000000001/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ae_email": "jane@example.com",
+    "gong_call_id": "call_002",
+    "call_title": "Weekly team sync"
+  }'
+# Returns: { skipped: true, reason: "No external participants detected - appears to be an internal call", decision: {...} }
+
+# Generate email - example that SKIPS (no sales keywords in transcript)
+curl -X POST http://localhost:3000/strategies/00000000-0000-0000-0000-000000000001/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ae_email": "jane@example.com",
+    "gong_call_id": "call_003",
+    "call_title": "Support call",
+    "external_emails": ["support@acme.com"],
+    "transcript": "Hi, I am having trouble with my account. Can you help me reset my password?"
+  }'
+# Returns: { skipped: true, reason: "Not clearly a new business prospect call...", decision: {...} }
 
 # Get email logs for a strategy
 curl http://localhost:3000/strategies/00000000-0000-0000-0000-000000000001/email-logs
+
+# ============ Test Call examples ============
+
+# Run a test call - fetches call from Gong and runs full pipeline (never sends email)
+# This is useful for testing prompts and verifying the pipeline works correctly
+curl -X POST http://localhost:3000/strategies/00000000-0000-0000-0000-000000000001/test-call \
+  -H "Content-Type: application/json" \
+  -d '{"gong_call_id": "1234567890123456789"}'
+# Returns: { id, ae_email, status: "generated", is_test: true, subject, body, decision, ... }
+# Or if skipped: { skipped: true, reason: "...", ae_email, decision }
+
+# Test calls can be repeated any number of times - great for prompt iteration!
+# Each run creates a new email_log row with a unique test_run_id
 ```
 
 ## Database
