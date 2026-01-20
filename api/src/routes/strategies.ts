@@ -410,7 +410,7 @@ router.post("/:strategyId/generate", async (req: Request, res: Response) => {
     }
 
     // Run the classifier to determine if this call should receive coaching
-    const decision = classifyCallEligibility({
+    const decision = await classifyCallEligibility({
       call_title,
       external_emails,
       transcript,
@@ -554,7 +554,7 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
     const call_date = callMetadata.started;
 
     // Step 5: Run classifyCallEligibility
-    const decision = classifyCallEligibility({
+    const decision = await classifyCallEligibility({
       call_title,
       external_emails,
       transcript,

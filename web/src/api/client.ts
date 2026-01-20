@@ -39,12 +39,9 @@ export interface CallContext {
 }
 
 export type CallType = 
-  | "new_business"
-  | "expansion"
-  | "renewal"
-  | "support"
+  | "prospect"
+  | "existing_customer"
   | "internal"
-  | "partner"
   | "unknown";
 
 export interface ClassifierDecision {
@@ -52,6 +49,7 @@ export interface ClassifierDecision {
   call_type: CallType;
   confidence: number;
   reason: string;
+  is_prospect_call: boolean;
 }
 
 export interface EmailLog {
