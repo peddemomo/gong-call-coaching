@@ -14,6 +14,7 @@
     <include file="migrations/006-email-logs-classifier.xml"/>
     <include file="migrations/007-test-call-feature.xml"/>
     <include file="migrations/008-strategy-enabled.xml"/>
+    <include file="migrations/009-company-context-cache.xml"/>
 
 </databaseChangeLog>
 

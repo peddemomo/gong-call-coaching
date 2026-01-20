@@ -9,7 +9,7 @@ import { classifyCallEligibility } from "../services/classifyCallEligibility";
 import {
   getCallById,
   getTranscriptByCallId,
-  getPrimaryAEEmail,
+  getInternalEmails,
   getExternalEmails,
 } from "../integrations/gong/client";
 
@@ -607,10 +607,10 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
       return;
     }
 
-    // Step 2: Determine primary AE email (call owner / primary internal participant)
-    const ae_email = getPrimaryAEEmail(callMetadata.parties);
+    // Step 2: Get all internal participant emails (AE-first selection)
+    const internalEmails = getInternalEmails(callMetadata.parties);
 
-    if (!ae_email) {
+    if (internalEmails.length === 0) {
       res.status(200).json({
         skipped: true,
         reason: "No internal participant found in call",
@@ -620,35 +620,46 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
       return;
     }
 
-    // Step 3: Check AE exists in DB and belongs to this strategyId
+    // Step 3: Check which internal participants are configured AEs in this strategy
+    // This allows calls to be attributed to the AE even if a manager scheduled the meeting
     const aeCheck = await pool.query(
-      "SELECT id, email, strategy_id FROM public.aes WHERE email = $1",
-      [ae_email]
+      "SELECT id, email, strategy_id FROM public.aes WHERE email = ANY($1) AND strategy_id = $2",
+      [internalEmails, strategyId]
     );
 
     if (aeCheck.rows.length === 0) {
+      // Check if any of them are AEs in a different strategy
+      const otherStrategyCheck = await pool.query(
+        "SELECT email, strategy_id FROM public.aes WHERE email = ANY($1)",
+        [internalEmails]
+      );
+
+      if (otherStrategyCheck.rows.length > 0) {
+        const otherAE = otherStrategyCheck.rows[0];
+        res.status(200).json({
+          skipped: true,
+          reason: "AE belongs to different strategy",
+          ae_email: otherAE.email,
+          current_strategy_id: otherAE.strategy_id,
+          gong_call_id,
+          call_title: callMetadata.title,
+        });
+        return;
+      }
+
       res.status(200).json({
         skipped: true,
-        reason: "AE not configured in this strategy",
-        ae_email,
+        reason: "No configured AE among internal participants",
+        internal_participants: internalEmails,
         gong_call_id,
         call_title: callMetadata.title,
       });
       return;
     }
 
+    // Use the first configured AE found in this strategy
     const aeRecord = aeCheck.rows[0];
-    if (aeRecord.strategy_id !== strategyId) {
-      res.status(200).json({
-        skipped: true,
-        reason: "AE belongs to different strategy",
-        ae_email,
-        current_strategy_id: aeRecord.strategy_id,
-        gong_call_id,
-        call_title: callMetadata.title,
-      });
-      return;
-    }
+    const ae_email = aeRecord.email;
 
     // Step 4: Build input object for classifier
     const external_emails = getExternalEmails(callMetadata.parties);

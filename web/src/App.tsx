@@ -15,9 +15,6 @@ import {
   updatePromptByStrategy,
   getEmailLogsByStrategy,
   EmailLog,
-  generateEmailByStrategy,
-  GenerateEmailRequest,
-  GenerateResponse,
   runTestCall,
   TestCallResponse,
 } from "./api/client";
@@ -230,52 +227,9 @@ function App() {
     }
   }, [selectedLog]);
 
-  // Generate email mutation (strategy-scoped)
-  const [generateMessage, setGenerateMessage] = useState<{ type: "success" | "error" | "skipped"; text: string } | null>(null);
-  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
-  const [generateModalAE, setGenerateModalAE] = useState<string | null>(null);
-  const [generateCallId, setGenerateCallId] = useState("");
-  const [generateCallTitle, setGenerateCallTitle] = useState("");
-  const [generateExternalEmails, setGenerateExternalEmails] = useState("");
-  const [generateTranscript, setGenerateTranscript] = useState("");
-
   // Test Call state
   const [testCallId, setTestCallId] = useState("");
   const [testCallMessage, setTestCallMessage] = useState<{ type: "success" | "error" | "skipped"; text: string; details?: string } | null>(null);
-
-  const generateMutation = useMutation({
-    mutationFn: ({
-      strategyId,
-      request,
-    }: {
-      strategyId: string;
-      request: GenerateEmailRequest;
-    }) => generateEmailByStrategy(strategyId, request),
-    onSuccess: (response: GenerateResponse) => {
-      queryClient.invalidateQueries({ queryKey: ["emailLogs", selectedStrategyId] });
-      if (response.skipped) {
-        setGenerateMessage({ type: "skipped", text: `Skipped: ${response.reason}` });
-      } else {
-        setGenerateMessage({ type: "success", text: "Email queued for generation!" });
-      }
-      setGeneratingFor(null);
-      setGenerateModalAE(null);
-      setGenerateCallId("");
-      setGenerateCallTitle("");
-      setGenerateExternalEmails("");
-      setGenerateTranscript("");
-      setTimeout(() => setGenerateMessage(null), 5000);
-    },
-    onError: (err: Error) => {
-      const isAlreadyGenerated = err.message.includes("Already") || err.message.includes("already");
-      setGenerateMessage({
-        type: "error",
-        text: isAlreadyGenerated ? "Already processed for this call" : err.message,
-      });
-      setGeneratingFor(null);
-      setTimeout(() => setGenerateMessage(null), 3000);
-    },
-  });
 
   // Test Call mutation
   const testCallMutation = useMutation({
@@ -313,38 +267,6 @@ function App() {
     if (!selectedStrategyId || !testCallId.trim()) return;
     setTestCallMessage(null);
     testCallMutation.mutate({ strategyId: selectedStrategyId, gongCallId: testCallId.trim() });
-  };
-
-  const handleOpenGenerateModal = (ae_email: string) => {
-    setGenerateModalAE(ae_email);
-    setGenerateCallId("");
-    setGenerateCallTitle("");
-    setGenerateExternalEmails("");
-    setGenerateTranscript("");
-  };
-
-  const handleSubmitGenerate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedStrategyId || !generateModalAE || !generateCallId.trim()) return;
-    setGeneratingFor(generateModalAE);
-    setGenerateMessage(null);
-    
-    // Parse external emails from comma-separated string
-    const externalEmailsArray = generateExternalEmails
-      .split(",")
-      .map((e) => e.trim())
-      .filter((e) => e.length > 0);
-
-    generateMutation.mutate({
-      strategyId: selectedStrategyId,
-      request: {
-        ae_email: generateModalAE,
-        gong_call_id: generateCallId.trim(),
-        call_title: generateCallTitle.trim() || undefined,
-        external_emails: externalEmailsArray.length > 0 ? externalEmailsArray : undefined,
-        transcript: generateTranscript.trim() || undefined,
-      },
-    });
   };
 
   const handleSubmitAE = (e: React.FormEvent) => {
@@ -701,27 +623,6 @@ function App() {
               <p style={{ color: "#666" }}>No recipients yet. Add one above!</p>
             )}
 
-            {/* Generate Message */}
-            {generateMessage && (
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  marginBottom: "1rem",
-                  borderRadius: "4px",
-                  backgroundColor: 
-                    generateMessage.type === "success" ? "#e6f4ea" : 
-                    generateMessage.type === "skipped" ? "#fff8e6" : 
-                    "#fff0f0",
-                  color: 
-                    generateMessage.type === "success" ? "#1e7e34" : 
-                    generateMessage.type === "skipped" ? "#b36b00" : 
-                    "#cc0000",
-                }}
-              >
-                {generateMessage.text}
-              </div>
-            )}
-
             {aes && aes.length > 0 && (
               <>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -756,40 +657,22 @@ function App() {
                           {new Date(ae.created_at).toLocaleDateString()}
                         </td>
                         <td style={{ padding: "0.75rem" }}>
-                          <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <button
-                              onClick={() => handleOpenGenerateModal(ae.email)}
-                              disabled={generatingFor === ae.email}
-                              style={{
-                                padding: "0.25rem 0.5rem",
-                                fontSize: "0.75rem",
-                                backgroundColor: "#f0f0f0",
-                                color: "#333",
-                                border: "1px solid #ccc",
-                                borderRadius: "4px",
-                                cursor: generatingFor === ae.email ? "not-allowed" : "pointer",
-                                opacity: generatingFor === ae.email ? 0.6 : 1,
-                              }}
-                            >
-                              {generatingFor === ae.email ? "Generating..." : "Generate (test)"}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAE(ae.id)}
-                              disabled={deletingAeId === ae.id}
-                              style={{
-                                padding: "0.25rem 0.5rem",
-                                fontSize: "0.75rem",
-                                backgroundColor: "#fce8e6",
-                                color: "#c5221f",
-                                border: "1px solid #f5c6cb",
-                                borderRadius: "4px",
-                                cursor: deletingAeId === ae.id ? "not-allowed" : "pointer",
-                                opacity: deletingAeId === ae.id ? 0.6 : 1,
-                              }}
-                            >
-                              {deletingAeId === ae.id ? "Deleting..." : "Delete"}
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleDeleteAE(ae.id)}
+                            disabled={deletingAeId === ae.id}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                              backgroundColor: "#fce8e6",
+                              color: "#c5221f",
+                              border: "1px solid #f5c6cb",
+                              borderRadius: "4px",
+                              cursor: deletingAeId === ae.id ? "not-allowed" : "pointer",
+                              opacity: deletingAeId === ae.id ? 0.6 : 1,
+                            }}
+                          >
+                            {deletingAeId === ae.id ? "Deleting..." : "Delete"}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1099,212 +982,6 @@ function App() {
       {/* Email Log Detail Modal */}
       {selectedLog && (
         <EmailLogModal log={selectedLog} onClose={() => setSelectedLog(null)} />
-      )}
-
-      {/* Generate Email Modal */}
-      {generateModalAE && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setGenerateModalAE(null);
-              setGenerateCallId("");
-              setGenerateCallTitle("");
-              setGenerateExternalEmails("");
-              setGenerateTranscript("");
-            }
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "8px",
-              padding: "1.5rem",
-              maxWidth: "550px",
-              width: "90%",
-              maxHeight: "85vh",
-              overflow: "auto",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-              <h3 style={{ margin: 0, fontSize: "1.25rem" }}>Generate Email</h3>
-              <button
-                onClick={() => {
-                  setGenerateModalAE(null);
-                  setGenerateCallId("");
-                  setGenerateCallTitle("");
-                  setGenerateExternalEmails("");
-                  setGenerateTranscript("");
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: "1.5rem",
-                  cursor: "pointer",
-                  color: "#666",
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitGenerate}>
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
-                  AE Email
-                </label>
-                <p style={{ margin: 0, color: "#666" }}>{generateModalAE}</p>
-              </div>
-
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
-                  Gong Call ID <span style={{ color: "#cc0000" }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  value={generateCallId}
-                  onChange={(e) => setGenerateCallId(e.target.value)}
-                  placeholder="e.g., 1234567890"
-                  disabled={generateMutation.isPending}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem",
-                    fontSize: "1rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    boxSizing: "border-box",
-                  }}
-                  autoFocus
-                />
-              </div>
-
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
-                  Call Title <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={generateCallTitle}
-                  onChange={(e) => setGenerateCallTitle(e.target.value)}
-                  placeholder="e.g., Discovery Call with Acme Corp"
-                  disabled={generateMutation.isPending}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem",
-                    fontSize: "1rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
-                  External Emails <span style={{ color: "#999", fontWeight: 400 }}>(comma-separated, optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={generateExternalEmails}
-                  onChange={(e) => setGenerateExternalEmails(e.target.value)}
-                  placeholder="e.g., client@acme.com, buyer@acme.com"
-                  disabled={generateMutation.isPending}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem",
-                    fontSize: "1rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.75rem", color: "#666" }}>
-                  Helps the classifier determine if this is an external sales call
-                </p>
-              </div>
-
-              <div style={{ marginBottom: "1.5rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
-                  Transcript <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
-                </label>
-                <textarea
-                  value={generateTranscript}
-                  onChange={(e) => setGenerateTranscript(e.target.value)}
-                  placeholder="Paste call transcript here for better classification..."
-                  disabled={generateMutation.isPending}
-                  rows={4}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem",
-                    fontSize: "0.875rem",
-                    fontFamily: "monospace",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    boxSizing: "border-box",
-                    resize: "vertical",
-                  }}
-                />
-                <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.75rem", color: "#666" }}>
-                  The classifier looks for sales keywords (pricing, demo, proposal, etc.)
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGenerateModalAE(null);
-                    setGenerateCallId("");
-                    setGenerateCallTitle("");
-                    setGenerateExternalEmails("");
-                    setGenerateTranscript("");
-                  }}
-                  disabled={generateMutation.isPending}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    fontSize: "1rem",
-                    backgroundColor: "#f0f0f0",
-                    color: "#333",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={generateMutation.isPending || !generateCallId.trim()}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    fontSize: "1rem",
-                    backgroundColor: "#0066cc",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: generateMutation.isPending || !generateCallId.trim() ? "not-allowed" : "pointer",
-                    opacity: generateMutation.isPending || !generateCallId.trim() ? 0.6 : 1,
-                  }}
-                >
-                  {generateMutation.isPending ? "Processing..." : "Generate"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );

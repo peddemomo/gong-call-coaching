@@ -33,6 +33,7 @@ export interface CoachingInput {
   call_date?: string;
   ae_email?: string;
   external_emails?: string[];
+  company_context?: string;
 }
 
 export interface CoachingOutput {
@@ -48,7 +49,7 @@ export async function generateCoachingFeedback(
 ): Promise<CoachingOutput> {
   const client = getOpenAIClient();
   
-  const { prompt, transcript, call_title, call_date, ae_email, external_emails } = input;
+  const { prompt, transcript, call_title, call_date, ae_email, external_emails, company_context } = input;
   
   // Build context for the AI
   let contextInfo = "";
@@ -63,6 +64,9 @@ export async function generateCoachingFeedback(
   }
   if (external_emails && external_emails.length > 0) {
     contextInfo += `External Participants: ${external_emails.join(", ")}\n`;
+  }
+  if (company_context) {
+    contextInfo += `\n## Prospect Company Context\n${company_context}\n`;
   }
   
   const systemMessage = `You are an expert sales coach providing feedback to account executives based on their sales calls. 

@@ -9,7 +9,7 @@ import pool from "../db/pool";
 import {
   getRecentCalls,
   getTranscriptByCallId,
-  getPrimaryAEEmail,
+  getInternalEmails,
   getExternalEmails,
   GongCallMetadata,
 } from "../integrations/gong/client";
@@ -125,9 +125,9 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
     return;
   }
 
-  // Find primary AE email
-  const aeEmail = getPrimaryAEEmail(call.parties);
-  if (!aeEmail) {
+  // Get all internal participant emails (AE-first selection)
+  const internalEmails = getInternalEmails(call.parties);
+  if (internalEmails.length === 0) {
     console.log(`[Poll] Skipping call ${call.id}: no internal participant with email`);
     result.callsSkipped++;
     result.details.push({
@@ -139,29 +139,31 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
     return;
   }
 
-  // Look up AE in database and get their strategy
+  // Look up which internal participants are configured AEs
+  // This allows calls to be attributed to the AE even if a manager scheduled the meeting
   const aeResult = await pool.query(
     `SELECT a.id, a.email, a.strategy_id, s.enabled as strategy_enabled, s.name as strategy_name
      FROM public.aes a
      JOIN public.strategies s ON a.strategy_id = s.id
-     WHERE a.email = $1`,
-    [aeEmail]
+     WHERE a.email = ANY($1)`,
+    [internalEmails]
   );
 
   if (aeResult.rows.length === 0) {
-    console.log(`[Poll] Skipping call ${call.id}: AE ${aeEmail} not configured`);
+    console.log(`[Poll] Skipping call ${call.id}: no configured AE among internal participants (${internalEmails.join(", ")})`);
     result.callsSkipped++;
     result.details.push({
       callId: call.id,
       callTitle: call.title,
       status: "skipped",
-      reason: `AE ${aeEmail} not configured in any strategy`,
-      aeEmail,
+      reason: `No configured AE among internal participants`,
     });
     return;
   }
 
+  // Use the first configured AE found
   const ae = aeResult.rows[0];
+  const aeEmail = ae.email;
 
   // Check if strategy is enabled
   if (!ae.strategy_enabled) {

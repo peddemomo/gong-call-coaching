@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Create company_context_cache table -->
+    <changeSet id="009-create-company-context-cache" author="system">
+        <createTable tableName="company_context_cache">
+            <column name="domain" type="TEXT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="context" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fetched_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMPTZ" defaultValueComputed="now() + INTERVAL '7 days'">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Add index on expires_at for efficient cache cleanup queries -->
+    <changeSet id="009-add-expires-at-index" author="system">
+        <createIndex tableName="company_context_cache" indexName="idx_company_context_cache_expires_at">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

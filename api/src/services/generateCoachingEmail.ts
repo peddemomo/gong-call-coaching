@@ -2,6 +2,7 @@ import pool from "../db/pool";
 import { ClassifierDecision } from "./classifyCallEligibility";
 import { generateCoachingFeedback } from "./openaiCoaching";
 import { sendCoachingEmail } from "./sendEmail";
+import { getCompanyContextFromEmails } from "./companyContext";
 
 // Default strategy ID for backward compatibility
 export const DEFAULT_STRATEGY_ID = "00000000-0000-0000-0000-000000000001";
@@ -11,6 +12,7 @@ export interface CallContext {
   call_date?: string;
   external_emails?: string[];
   transcript?: string;
+  company_context?: string;
 }
 
 export interface GenerateEmailInput {
@@ -110,6 +112,21 @@ export async function generateCoachingEmail(
   // Check if we have a transcript to analyze
   const transcript = context?.transcript;
   
+  // Fetch company context from external participant emails
+  let companyContextSummary: string | undefined;
+  if (context?.external_emails && context.external_emails.length > 0) {
+    try {
+      const companyContext = await getCompanyContextFromEmails(context.external_emails);
+      if (companyContext) {
+        companyContextSummary = companyContext.summary;
+        console.log(`[Email] Fetched company context for domain: ${companyContext.domain}`);
+      }
+    } catch (error) {
+      console.error("[Email] Failed to fetch company context:", error);
+      // Continue without company context - it's not critical
+    }
+  }
+  
   let subject: string;
   let body: string;
   
@@ -131,6 +148,7 @@ export async function generateCoachingEmail(
         call_date: context?.call_date,
         ae_email,
         external_emails: context?.external_emails,
+        company_context: companyContextSummary,
       });
       
       subject = coachingResult.subject;
@@ -145,6 +163,13 @@ export async function generateCoachingEmail(
   // For test runs, use 'generated' status instead of 'queued' since we won't actually queue
   const status = is_test ? "generated" : "queued";
 
+  // Build context with company context included for logging
+  const contextToStore: CallContext | undefined = context 
+    ? { ...context, company_context: companyContextSummary }
+    : companyContextSummary 
+      ? { company_context: companyContextSummary }
+      : undefined;
+
   // Insert into email_logs with idempotency check (only for non-test runs)
   try {
     const result = await pool.query(
@@ -158,7 +183,7 @@ export async function generateCoachingEmail(
         subject, 
         body, 
         strategy_id, 
-        context ? JSON.stringify(context) : null,
+        contextToStore ? JSON.stringify(contextToStore) : null,
         decision ? JSON.stringify(decision) : null,
         is_test,
       ]

@@ -171,6 +171,7 @@ export async function getTranscriptByCallId(gongCallId: string): Promise<string>
 /**
  * Helper to determine primary AE (call owner / primary internal participant)
  * Returns the first internal participant with an email, or null if not found.
+ * @deprecated Use getInternalEmails() for AE-first selection logic
  */
 export function getPrimaryAEEmail(parties: GongParticipant[]): string | null {
   // Gong API returns affiliation with capital letters (e.g., "Internal", "External")
@@ -184,6 +185,16 @@ export function getPrimaryAEEmail(parties: GongParticipant[]): string | null {
 
   // Return the first internal participant's email (typically the call owner)
   return internalParticipants[0].emailAddress || null;
+}
+
+/**
+ * Helper to get all internal participant emails
+ * Used for AE-first selection: check which internal participants are configured AEs
+ */
+export function getInternalEmails(parties: GongParticipant[]): string[] {
+  return parties
+    .filter((p) => p.affiliation.toLowerCase() === "internal" && p.emailAddress)
+    .map((p) => p.emailAddress as string);
 }
 
 /**
