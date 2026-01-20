@@ -195,3 +195,84 @@ export function getExternalEmails(parties: GongParticipant[]): string[] {
     .filter((p) => p.affiliation.toLowerCase() === "external" && p.emailAddress)
     .map((p) => p.emailAddress as string);
 }
+
+/**
+ * Fetch recent completed calls from Gong
+ * Uses the /v2/calls endpoint with date filters
+ * 
+ * @param fromDate - Start of time range (ISO string)
+ * @param toDate - End of time range (ISO string), defaults to now
+ * @returns Array of call metadata with participant info
+ */
+export async function getRecentCalls(
+  fromDate: string,
+  toDate?: string
+): Promise<GongCallMetadata[]> {
+  const authHeader = getAuthHeader();
+  const url = `${GONG_BASE_URL}/v2/calls/extensive`;
+  
+  const requestBody = {
+    filter: {
+      fromDateTime: fromDate,
+      toDateTime: toDate || new Date().toISOString(),
+    },
+    contentSelector: {
+      exposedFields: {
+        parties: true,
+      },
+    },
+  };
+
+  console.log(`[Gong] Fetching calls from ${fromDate} to ${toDate || "now"}`);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+  } catch (fetchError) {
+    console.error(`[Gong] Fetch error:`, fetchError);
+    throw new Error(`Gong API fetch failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+  }
+
+  if (!response.ok) {
+    // Gong returns 404 when no calls match the filter - this is not an error
+    if (response.status === 404) {
+      console.log(`[Gong] No calls found in the specified time range`);
+      return [];
+    }
+    const errorText = await response.text();
+    console.error(`[Gong] API error (${response.status}):`, errorText);
+    throw new Error(`Gong API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.calls || data.calls.length === 0) {
+    console.log(`[Gong] No calls found in the specified time range`);
+    return [];
+  }
+
+  console.log(`[Gong] Found ${data.calls.length} calls`);
+
+  return data.calls.map((call: { metaData?: Record<string, unknown>; parties?: Array<{ emailAddress?: string; name?: string; affiliation?: string }> }) => {
+    const metaData = call.metaData || call;
+    return {
+      id: (metaData as Record<string, unknown>).id as string || "",
+      title: (metaData as Record<string, unknown>).title as string || "Untitled Call",
+      started: (metaData as Record<string, unknown>).started as string || new Date().toISOString(),
+      duration: (metaData as Record<string, unknown>).duration as number || 0,
+      url: (metaData as Record<string, unknown>).url as string || "",
+      parties: (call.parties || []).map((p) => ({
+        emailAddress: p.emailAddress,
+        name: p.name || "Unknown",
+        affiliation: p.affiliation as GongParticipant["affiliation"] || "unknown",
+      })),
+    };
+  });
+}

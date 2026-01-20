@@ -8,6 +8,8 @@ import emailLogsRouter from "./routes/emailLogs";
 import generateRouter from "./routes/generate";
 import strategiesRouter from "./routes/strategies";
 import userflowWebhookRouter from "./routes/userflowWebhook";
+import pollRouter from "./routes/poll";
+import { startPolling } from "./services/pollGongCalls";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +37,18 @@ app.use("/generate", generateRouter);
 // Userflow webhook for doctor info requests
 app.use("/userflow-webhook", userflowWebhookRouter);
 
+// Polling endpoint for Gong calls
+app.use("/poll", pollRouter);
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+
+  // Start background polling if enabled
+  if (process.env.ENABLE_POLLING === "true") {
+    const intervalMinutes = parseInt(process.env.POLLING_INTERVAL_MINUTES || "15");
+    const lookbackHours = parseInt(process.env.POLLING_LOOKBACK_HOURS || "2");
+    startPolling(intervalMinutes, lookbackHours);
+  } else {
+    console.log("[Poll] Background polling is disabled. Set ENABLE_POLLING=true to enable.");
+  }
 });
