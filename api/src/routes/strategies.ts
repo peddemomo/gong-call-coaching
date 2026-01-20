@@ -89,6 +89,83 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /strategies/:strategyId - Update a strategy's name
+router.patch("/:strategyId", async (req: Request, res: Response) => {
+  try {
+    const { strategyId } = req.params;
+    const parsed = createStrategySchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Validation failed",
+        details: parsed.error.errors,
+      });
+      return;
+    }
+
+    const { name } = parsed.data;
+
+    const result = await pool.query(
+      `UPDATE public.strategies 
+       SET name = $1 
+       WHERE id = $2 
+       RETURNING *`,
+      [name, strategyId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: "Strategy not found" });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error updating strategy:", error);
+    res.status(500).json({ error: "Failed to update strategy" });
+  }
+});
+
+// DELETE /strategies/:strategyId - Delete a strategy
+router.delete("/:strategyId", async (req: Request, res: Response) => {
+  try {
+    const { strategyId } = req.params;
+
+    // Don't allow deleting the default strategy
+    if (strategyId === DEFAULT_STRATEGY_ID) {
+      res.status(400).json({ error: "Cannot delete the default strategy" });
+      return;
+    }
+
+    // Check if strategy has any AEs
+    const aeCheck = await pool.query(
+      "SELECT COUNT(*) FROM public.aes WHERE strategy_id = $1",
+      [strategyId]
+    );
+
+    if (parseInt(aeCheck.rows[0].count) > 0) {
+      res.status(400).json({ 
+        error: "Cannot delete strategy with recipients. Remove all recipients first." 
+      });
+      return;
+    }
+
+    const result = await pool.query(
+      "DELETE FROM public.strategies WHERE id = $1 RETURNING id",
+      [strategyId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: "Strategy not found" });
+      return;
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting strategy:", error);
+    res.status(500).json({ error: "Failed to delete strategy" });
+  }
+});
+
 // GET /strategies/:strategyId/aes - List AEs for a strategy
 router.get("/:strategyId/aes", async (req: Request, res: Response) => {
   try {

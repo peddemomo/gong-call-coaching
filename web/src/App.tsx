@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getStrategies,
   createStrategy,
+  updateStrategy,
+  deleteStrategy,
   Strategy,
   getAEsByStrategy,
   createAEInStrategy,
@@ -62,6 +64,10 @@ function App() {
     setShowAllEmailLogs(false);
   }, [selectedStrategyId]);
 
+  // Editing strategy state
+  const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
+  const [editingStrategyName, setEditingStrategyName] = useState("");
+
   // Create strategy mutation
   const createStrategyMutation = useMutation({
     mutationFn: createStrategy,
@@ -72,6 +78,43 @@ function App() {
       setShowNewStrategyForm(false);
     },
   });
+
+  // Update strategy mutation
+  const updateStrategyMutation = useMutation({
+    mutationFn: ({ strategyId, name }: { strategyId: string; name: string }) =>
+      updateStrategy(strategyId, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["strategies"] });
+      setEditingStrategyId(null);
+      setEditingStrategyName("");
+    },
+  });
+
+  // Delete strategy mutation
+  const deleteStrategyMutation = useMutation({
+    mutationFn: deleteStrategy,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["strategies"] });
+      if (selectedStrategyId === editingStrategyId) {
+        setSelectedStrategyId(null);
+      }
+    },
+  });
+
+  const handleEditStrategy = (strategy: Strategy) => {
+    setEditingStrategyId(strategy.id);
+    setEditingStrategyName(strategy.name);
+  };
+
+  const handleSaveStrategyName = () => {
+    if (!editingStrategyId || !editingStrategyName.trim()) return;
+    updateStrategyMutation.mutate({ strategyId: editingStrategyId, name: editingStrategyName.trim() });
+  };
+
+  const handleDeleteStrategy = (strategyId: string) => {
+    if (!confirm("Are you sure you want to delete this strategy? You must remove all recipients first.")) return;
+    deleteStrategyMutation.mutate(strategyId);
+  };
 
   // AEs query (strategy-scoped)
   const {
@@ -115,7 +158,7 @@ function App() {
 
   const handleDeleteAE = (aeId: string) => {
     if (!selectedStrategyId) return;
-    if (!confirm("Are you sure you want to delete this AE?")) return;
+    if (!confirm("Are you sure you want to delete this recipient?")) return;
     setDeletingAeId(aeId);
     deleteAEMutation.mutate({ strategyId: selectedStrategyId, aeId });
   };
@@ -245,14 +288,14 @@ function App() {
         });
       }
       setTestCallId("");
-      setTimeout(() => setTestCallMessage(null), 8000);
+      // Message persists until manually dismissed
     },
     onError: (err: Error) => {
       setTestCallMessage({
         type: "error",
         text: err.message,
       });
-      setTimeout(() => setTestCallMessage(null), 5000);
+      // Message persists until manually dismissed
     },
   });
 
@@ -427,27 +470,137 @@ function App() {
         )}
 
         {strategies && strategies.length > 0 && (
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
             {strategies.map((strategy: Strategy) => (
-              <button
-                key={strategy.id}
-                onClick={() => setSelectedStrategyId(strategy.id)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.875rem",
-                  backgroundColor: selectedStrategyId === strategy.id ? "#0066cc" : "#fff",
-                  color: selectedStrategyId === strategy.id ? "#fff" : "#333",
-                  border: `2px solid ${selectedStrategyId === strategy.id ? "#0066cc" : "#ccc"}`,
-                  borderRadius: "20px",
-                  cursor: "pointer",
-                  fontWeight: selectedStrategyId === strategy.id ? 600 : 400,
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {strategy.name}
-              </button>
+              <div key={strategy.id} style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                {editingStrategyId === strategy.id ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                    <input
+                      type="text"
+                      value={editingStrategyName}
+                      onChange={(e) => setEditingStrategyName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveStrategyName();
+                        if (e.key === "Escape") {
+                          setEditingStrategyId(null);
+                          setEditingStrategyName("");
+                        }
+                      }}
+                      autoFocus
+                      style={{
+                        padding: "0.4rem 0.75rem",
+                        fontSize: "0.875rem",
+                        border: "2px solid #0066cc",
+                        borderRadius: "20px",
+                        outline: "none",
+                        width: "150px",
+                      }}
+                    />
+                    <button
+                      onClick={handleSaveStrategyName}
+                      disabled={updateStrategyMutation.isPending || !editingStrategyName.trim()}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        backgroundColor: "#28a745",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {updateStrategyMutation.isPending ? "..." : "Save"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingStrategyId(null);
+                        setEditingStrategyName("");
+                      }}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        backgroundColor: "#6c757d",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setSelectedStrategyId(strategy.id)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        fontSize: "0.875rem",
+                        backgroundColor: selectedStrategyId === strategy.id ? "#0066cc" : "#fff",
+                        color: selectedStrategyId === strategy.id ? "#fff" : "#333",
+                        border: `2px solid ${selectedStrategyId === strategy.id ? "#0066cc" : "#ccc"}`,
+                        borderRadius: "20px",
+                        cursor: "pointer",
+                        fontWeight: selectedStrategyId === strategy.id ? 600 : 400,
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {strategy.name}
+                    </button>
+                    {selectedStrategyId === strategy.id && (
+                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                        <button
+                          onClick={() => handleEditStrategy(strategy)}
+                          title="Edit name"
+                          style={{
+                            padding: "0.25rem 0.4rem",
+                            fontSize: "0.7rem",
+                            backgroundColor: "#f0f0f0",
+                            color: "#333",
+                            border: "1px solid #ccc",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStrategy(strategy.id)}
+                          disabled={deleteStrategyMutation.isPending}
+                          title="Delete strategy"
+                          style={{
+                            padding: "0.25rem 0.4rem",
+                            fontSize: "0.7rem",
+                            backgroundColor: "#fce8e6",
+                            color: "#c5221f",
+                            border: "1px solid #f5c6cb",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             ))}
           </div>
+        )}
+        {deleteStrategyMutation.isError && (
+          <p style={{ color: "#cc0000", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+            {deleteStrategyMutation.error instanceof Error
+              ? deleteStrategyMutation.error.message
+              : "Failed to delete strategy"}
+          </p>
+        )}
+        {updateStrategyMutation.isError && (
+          <p style={{ color: "#cc0000", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+            {updateStrategyMutation.error instanceof Error
+              ? updateStrategyMutation.error.message
+              : "Failed to update strategy"}
+          </p>
         )}
 
         {strategies && strategies.length === 0 && (
@@ -459,14 +612,14 @@ function App() {
       {selectedStrategyId && (
         <>
           <section style={{ marginTop: "2rem" }}>
-            <h2>AEs {selectedStrategy && <span style={{ fontWeight: 400, color: "#666" }}>({selectedStrategy.name})</span>}</h2>
+            <h2>Recipients</h2>
 
             {/* Create AE Form */}
             <form onSubmit={handleSubmitAE} style={{ marginBottom: "1.5rem" }}>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                 <input
                   type="email"
-                  placeholder="Enter AE email"
+                  placeholder="Enter recipient email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={createAEMutation.isPending}
@@ -493,7 +646,7 @@ function App() {
                     opacity: createAEMutation.isPending ? 0.6 : 1,
                   }}
                 >
-                  {createAEMutation.isPending ? "Adding..." : "Add AE"}
+                  {createAEMutation.isPending ? "Adding..." : "Add"}
                 </button>
               </div>
               {formError && (
@@ -504,20 +657,20 @@ function App() {
             </form>
 
             {/* Loading State */}
-            {isAEsLoading && <p>Loading AEs...</p>}
+            {isAEsLoading && <p>Loading recipients...</p>}
 
             {/* Error State */}
             {isAEsError && (
               <div style={{ color: "#cc0000", padding: "1rem", backgroundColor: "#fff0f0", borderRadius: "4px" }}>
                 <p style={{ margin: 0 }}>
-                  Error loading AEs: {aesError instanceof Error ? aesError.message : "Unknown error"}
+                  Error loading recipients: {aesError instanceof Error ? aesError.message : "Unknown error"}
                 </p>
               </div>
             )}
 
-            {/* AE List */}
+            {/* Recipient List */}
             {aes && aes.length === 0 && (
-              <p style={{ color: "#666" }}>No AEs yet. Add one above!</p>
+              <p style={{ color: "#666" }}>No recipients yet. Add one above!</p>
             )}
 
             {/* Generate Message */}
@@ -705,11 +858,31 @@ function App() {
                       : testCallMessage.type === "skipped"
                       ? "#b36b00"
                       : "#cc0000",
+                  position: "relative",
                 }}
               >
-                <div>{testCallMessage.text}</div>
+                <button
+                  onClick={() => setTestCallMessage(null)}
+                  style={{
+                    position: "absolute",
+                    top: "0.5rem",
+                    right: "0.5rem",
+                    background: "none",
+                    border: "none",
+                    fontSize: "1.25rem",
+                    cursor: "pointer",
+                    color: "inherit",
+                    opacity: 0.6,
+                    lineHeight: 1,
+                    padding: 0,
+                  }}
+                  aria-label="Dismiss"
+                >
+                  ×
+                </button>
+                <div style={{ paddingRight: "1.5rem" }}>{testCallMessage.text}</div>
                 {testCallMessage.details && (
-                  <div style={{ fontSize: "0.875rem", marginTop: "0.25rem", opacity: 0.8 }}>
+                  <div style={{ fontSize: "0.875rem", marginTop: "0.25rem", opacity: 0.8, paddingRight: "1.5rem" }}>
                     {testCallMessage.details}
                   </div>
                 )}
@@ -723,7 +896,7 @@ function App() {
 
           {/* Prompt Section */}
           <section style={{ marginTop: "3rem" }}>
-            <h2>Prompt {selectedStrategy && <span style={{ fontWeight: 400, color: "#666" }}>({selectedStrategy.name})</span>}</h2>
+            <h2>Prompt</h2>
 
             {isPromptLoading && <p>Loading prompt...</p>}
 
@@ -790,7 +963,7 @@ function App() {
 
           {/* Email Logs Section */}
           <section style={{ marginTop: "3rem" }}>
-            <h2>Email Logs {selectedStrategy && <span style={{ fontWeight: 400, color: "#666" }}>({selectedStrategy.name})</span>}</h2>
+            <h2>Email Logs</h2>
 
             {isEmailLogsLoading && <p>Loading email logs...</p>}
 

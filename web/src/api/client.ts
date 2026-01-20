@@ -115,6 +115,34 @@ export const createStrategy = async (name: string): Promise<Strategy> => {
   return response.json();
 };
 
+export const updateStrategy = async (strategyId: string, name: string): Promise<Strategy> => {
+  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to update strategy: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const deleteStrategy = async (strategyId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to delete strategy: ${response.statusText}`);
+  }
+};
+
 // ============ Strategy-scoped AE API ============
 
 export const getAEsByStrategy = async (strategyId: string): Promise<AE[]> => {
