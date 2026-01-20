@@ -5,6 +5,7 @@ import {
   createStrategy,
   updateStrategy,
   deleteStrategy,
+  toggleStrategy,
   Strategy,
   getAEsByStrategy,
   createAEInStrategy,
@@ -98,6 +99,14 @@ function App() {
       if (selectedStrategyId === editingStrategyId) {
         setSelectedStrategyId(null);
       }
+    },
+  });
+
+  // Toggle strategy enabled mutation
+  const toggleStrategyMutation = useMutation({
+    mutationFn: toggleStrategy,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["strategies"] });
     },
   });
 
@@ -537,18 +546,37 @@ function App() {
                         padding: "0.5rem 1rem",
                         fontSize: "0.875rem",
                         backgroundColor: selectedStrategyId === strategy.id ? "#0066cc" : "#fff",
-                        color: selectedStrategyId === strategy.id ? "#fff" : "#333",
-                        border: `2px solid ${selectedStrategyId === strategy.id ? "#0066cc" : "#ccc"}`,
+                        color: selectedStrategyId === strategy.id ? "#fff" : strategy.enabled ? "#333" : "#999",
+                        border: `2px solid ${selectedStrategyId === strategy.id ? "#0066cc" : strategy.enabled ? "#ccc" : "#ddd"}`,
                         borderRadius: "20px",
                         cursor: "pointer",
                         fontWeight: selectedStrategyId === strategy.id ? 600 : 400,
                         transition: "all 0.15s ease",
+                        opacity: strategy.enabled ? 1 : 0.7,
                       }}
                     >
-                      {strategy.name}
+                      {strategy.name}{!strategy.enabled && " (off)"}
                     </button>
                     {selectedStrategyId === strategy.id && (
-                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                      <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                        <button
+                          onClick={() => toggleStrategyMutation.mutate(strategy.id)}
+                          disabled={toggleStrategyMutation.isPending}
+                          title={strategy.enabled ? "Turn off auto-emails" : "Turn on auto-emails"}
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            fontSize: "0.7rem",
+                            backgroundColor: strategy.enabled ? "#e6f4ea" : "#f5f5f5",
+                            color: strategy.enabled ? "#1e7e34" : "#666",
+                            border: `1px solid ${strategy.enabled ? "#b7e4c7" : "#ccc"}`,
+                            borderRadius: "12px",
+                            cursor: "pointer",
+                            fontWeight: 500,
+                            minWidth: "40px",
+                          }}
+                        >
+                          {strategy.enabled ? "ON" : "OFF"}
+                        </button>
                         <button
                           onClick={() => handleEditStrategy(strategy)}
                           title="Edit name"

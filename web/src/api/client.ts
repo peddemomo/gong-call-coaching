@@ -5,6 +5,7 @@ const API_BASE_URL =
 export interface Strategy {
   id: string;
   name: string;
+  enabled: boolean;
   created_at: string;
 }
 
@@ -141,6 +142,19 @@ export const deleteStrategy = async (strategyId: string): Promise<void> => {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || `Failed to delete strategy: ${response.statusText}`);
   }
+};
+
+export const toggleStrategy = async (strategyId: string): Promise<Strategy> => {
+  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/toggle`, {
+    method: "PATCH",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to toggle strategy: ${response.statusText}`);
+  }
+
+  return response.json();
 };
 
 // ============ Strategy-scoped AE API ============

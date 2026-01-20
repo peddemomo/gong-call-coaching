@@ -1,6 +1,7 @@
 import pool from "../db/pool";
 import { ClassifierDecision } from "./classifyCallEligibility";
 import { generateCoachingFeedback } from "./openaiCoaching";
+import { sendCoachingEmail } from "./sendEmail";
 
 // Default strategy ID for backward compatibility
 export const DEFAULT_STRATEGY_ID = "00000000-0000-0000-0000-000000000001";
@@ -163,7 +164,51 @@ export async function generateCoachingEmail(
       ]
     );
 
-    return result.rows[0];
+    const emailLog = result.rows[0];
+
+    // Send the email (including test runs - they go to the hardcoded test email anyway)
+    if (body) {
+      try {
+        const callTitle = context?.call_title || "Gong call";
+        const emailResult = await sendCoachingEmail({
+          recipientEmail: ae_email,
+          callTitle,
+          coachingBody: body,
+          subject,
+        });
+
+        if (emailResult.success) {
+          // Update status to 'sent'
+          await pool.query(
+            `UPDATE public.email_logs SET status = 'sent' WHERE id = $1`,
+            [emailLog.id]
+          );
+          emailLog.status = "sent";
+          console.log(`[Email] Successfully sent for call ${gong_call_id} to test email`);
+        } else {
+          // Update status to 'failed' with error message
+          await pool.query(
+            `UPDATE public.email_logs SET status = 'failed', error_message = $2 WHERE id = $1`,
+            [emailLog.id, emailResult.error]
+          );
+          emailLog.status = "failed";
+          emailLog.error_message = emailResult.error;
+          console.error(`[Email] Failed to send for call ${gong_call_id}: ${emailResult.error}`);
+        }
+      } catch (emailError) {
+        // Update status to 'failed' with error message
+        const errorMsg = emailError instanceof Error ? emailError.message : "Unknown email error";
+        await pool.query(
+          `UPDATE public.email_logs SET status = 'failed', error_message = $2 WHERE id = $1`,
+          [emailLog.id, errorMsg]
+        );
+        emailLog.status = "failed";
+        emailLog.error_message = errorMsg;
+        console.error(`[Email] Error sending for call ${gong_call_id}:`, emailError);
+      }
+    }
+
+    return emailLog;
   } catch (error: unknown) {
     // Check for unique constraint violation (PostgreSQL error code 23505)
     // Test runs are allowed to repeat, so only throw for non-test runs

@@ -125,6 +125,31 @@ router.patch("/:strategyId", async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /strategies/:strategyId/toggle - Toggle a strategy's enabled status
+router.patch("/:strategyId/toggle", async (req: Request, res: Response) => {
+  try {
+    const { strategyId } = req.params;
+
+    const result = await pool.query(
+      `UPDATE public.strategies 
+       SET enabled = NOT enabled 
+       WHERE id = $1 
+       RETURNING *`,
+      [strategyId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: "Strategy not found" });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error toggling strategy:", error);
+    res.status(500).json({ error: "Failed to toggle strategy" });
+  }
+});
+
 // DELETE /strategies/:strategyId - Delete a strategy
 router.delete("/:strategyId", async (req: Request, res: Response) => {
   try {
