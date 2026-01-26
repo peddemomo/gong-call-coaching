@@ -8,7 +8,7 @@
 import { Resend } from "resend";
 
 // IMPORTANT: Hardcoded test email - DO NOT send to actual recipients yet
-const TEST_EMAIL_RECIPIENT = "ljpeddemo@gmail.com";
+const TEST_EMAIL_RECIPIENT = "luke.peddemors@acuitymd.com";
 
 // Resend configuration
 const RESEND_API_KEY = process.env.RESEND_API_KEY;

@@ -15,6 +15,7 @@
     <include file="migrations/007-test-call-feature.xml"/>
     <include file="migrations/008-strategy-enabled.xml"/>
     <include file="migrations/009-company-context-cache.xml"/>
+    <include file="migrations/010-prospect-domain-sent.xml"/>
 
 </databaseChangeLog>
 

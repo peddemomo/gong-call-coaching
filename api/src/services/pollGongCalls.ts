@@ -13,6 +13,7 @@ import {
   getExternalEmails,
   GongCallMetadata,
 } from "../integrations/gong/client";
+import { extractDomainFromEmail } from "../integrations/perplexity/client";
 import { classifyCallEligibility } from "./classifyCallEligibility";
 import { generateCoachingEmail } from "./generateCoachingEmail";
 
@@ -199,6 +200,39 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
     return;
   }
 
+  // Get external emails for domain deduplication check
+  const externalEmails = getExternalEmails(call.parties);
+
+  // Extract unique prospect domains from external emails
+  const prospectDomains = [...new Set(
+    externalEmails
+      .map(email => extractDomainFromEmail(email))
+      .filter((d): d is string => d !== null)
+  )];
+
+  // Check if we've already sent coaching for any of these prospect domains (for this AE/strategy)
+  if (prospectDomains.length > 0) {
+    const existingDomains = await pool.query(
+      `SELECT prospect_domain FROM public.prospect_domain_sent 
+       WHERE ae_email = $1 AND strategy_id = $2 AND prospect_domain = ANY($3)`,
+      [aeEmail, ae.strategy_id, prospectDomains]
+    );
+
+    if (existingDomains.rows.length > 0) {
+      const alreadyCoachedDomain = existingDomains.rows[0].prospect_domain;
+      console.log(`[Poll] Skipping call ${call.id}: already coached for prospect domain "${alreadyCoachedDomain}"`);
+      result.callsAlreadyProcessed++;
+      result.details.push({
+        callId: call.id,
+        callTitle: call.title,
+        status: "already_processed",
+        reason: `Already coached for prospect domain: ${alreadyCoachedDomain}`,
+        aeEmail,
+      });
+      return;
+    }
+  }
+
   // Fetch transcript
   console.log(`[Poll] Fetching transcript for call ${call.id}`);
   const transcript = await getTranscriptByCallId(call.id);
@@ -215,9 +249,6 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
     });
     return;
   }
-
-  // Get external emails for classification
-  const externalEmails = getExternalEmails(call.parties);
 
   // Run classifier
   console.log(`[Poll] Classifying call ${call.id}`);
@@ -261,7 +292,7 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
 
   // Generate and send coaching email
   console.log(`[Poll] Generating coaching email for call ${call.id}`);
-  await generateCoachingEmail({
+  const emailLog = await generateCoachingEmail({
     ae_email: aeEmail,
     gong_call_id: call.id,
     strategy_id: ae.strategy_id,
@@ -269,6 +300,24 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
     decision,
     is_test: false,
   });
+
+  // Record prospect domains for deduplication (only if we have valid domains)
+  if (prospectDomains.length > 0) {
+    for (const domain of prospectDomains) {
+      try {
+        await pool.query(
+          `INSERT INTO public.prospect_domain_sent (ae_email, prospect_domain, strategy_id, first_email_log_id)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (ae_email, prospect_domain, strategy_id) DO NOTHING`,
+          [aeEmail, domain, ae.strategy_id, emailLog.id]
+        );
+      } catch (domainError) {
+        // Log but don't fail the overall process - the email was already sent
+        console.error(`[Poll] Failed to record prospect domain ${domain}:`, domainError);
+      }
+    }
+    console.log(`[Poll] Recorded ${prospectDomains.length} prospect domain(s) for deduplication: ${prospectDomains.join(", ")}`);
+  }
 
   console.log(`[Poll] Successfully processed call ${call.id}`);
   result.callsProcessed++;

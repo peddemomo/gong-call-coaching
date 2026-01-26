@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Create prospect_domain_sent table for tracking coached prospect domains per AE/strategy -->
+    <changeSet id="010-create-prospect-domain-sent-table" author="system">
+        <createTable tableName="prospect_domain_sent">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ae_email" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="prospect_domain" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="strategy_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="first_email_log_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Add unique constraint on (ae_email, prospect_domain, strategy_id) -->
+    <changeSet id="010-add-prospect-domain-sent-unique" author="system">
+        <addUniqueConstraint 
+            tableName="prospect_domain_sent" 
+            columnNames="ae_email, prospect_domain, strategy_id" 
+            constraintName="prospect_domain_sent_ae_domain_strategy_unique"/>
+    </changeSet>
+
+    <!-- Add foreign key: prospect_domain_sent.strategy_id -> strategies.id -->
+    <changeSet id="010-fk-prospect-domain-sent-strategy" author="system">
+        <addForeignKeyConstraint 
+            baseTableName="prospect_domain_sent" 
+            baseColumnNames="strategy_id"
+            referencedTableName="strategies" 
+            referencedColumnNames="id"
+            constraintName="fk_prospect_domain_sent_strategy"/>
+    </changeSet>
+
+    <!-- Add foreign key: prospect_domain_sent.first_email_log_id -> email_logs.id -->
+    <changeSet id="010-fk-prospect-domain-sent-email-log" author="system">
+        <addForeignKeyConstraint 
+            baseTableName="prospect_domain_sent" 
+            baseColumnNames="first_email_log_id"
+            referencedTableName="email_logs" 
+            referencedColumnNames="id"
+            constraintName="fk_prospect_domain_sent_email_log"/>
+    </changeSet>
+
+    <!-- Add index for efficient lookups by ae_email and strategy_id -->
+    <changeSet id="010-add-prospect-domain-sent-index" author="system">
+        <createIndex tableName="prospect_domain_sent" indexName="idx_prospect_domain_sent_ae_strategy">
+            <column name="ae_email"/>
+            <column name="strategy_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
