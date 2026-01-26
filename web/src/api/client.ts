@@ -1,6 +1,16 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
+/**
+ * Wrapper for fetch that includes credentials for cookie-based auth
+ */
+const authFetch = (url: string, options: RequestInit = {}): Promise<Response> => {
+  return fetch(url, {
+    ...options,
+    credentials: "include",
+  });
+};
+
 // Strategy types
 export interface Strategy {
   id: string;
@@ -87,7 +97,7 @@ export interface GenerateResponse {
 // ============ Strategy API ============
 
 export const getStrategies = async (): Promise<Strategy[]> => {
-  const response = await fetch(`${API_BASE_URL}/strategies`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies`, {
     method: "GET",
   });
 
@@ -100,7 +110,7 @@ export const getStrategies = async (): Promise<Strategy[]> => {
 };
 
 export const createStrategy = async (name: string): Promise<Strategy> => {
-  const response = await fetch(`${API_BASE_URL}/strategies`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -117,7 +127,7 @@ export const createStrategy = async (name: string): Promise<Strategy> => {
 };
 
 export const updateStrategy = async (strategyId: string, name: string): Promise<Strategy> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -134,7 +144,7 @@ export const updateStrategy = async (strategyId: string, name: string): Promise<
 };
 
 export const deleteStrategy = async (strategyId: string): Promise<void> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}`, {
     method: "DELETE",
   });
 
@@ -145,7 +155,7 @@ export const deleteStrategy = async (strategyId: string): Promise<void> => {
 };
 
 export const toggleStrategy = async (strategyId: string): Promise<Strategy> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/toggle`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/toggle`, {
     method: "PATCH",
   });
 
@@ -160,7 +170,7 @@ export const toggleStrategy = async (strategyId: string): Promise<Strategy> => {
 // ============ Strategy-scoped AE API ============
 
 export const getAEsByStrategy = async (strategyId: string): Promise<AE[]> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/aes`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/aes`, {
     method: "GET",
   });
 
@@ -173,7 +183,7 @@ export const getAEsByStrategy = async (strategyId: string): Promise<AE[]> => {
 };
 
 export const createAEInStrategy = async (strategyId: string, email: string): Promise<AE> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/aes`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/aes`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -194,7 +204,7 @@ export const createAEInStrategy = async (strategyId: string, email: string): Pro
 };
 
 export const deleteAEFromStrategy = async (strategyId: string, aeId: string): Promise<void> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/aes/${aeId}`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/aes/${aeId}`, {
     method: "DELETE",
   });
 
@@ -207,7 +217,7 @@ export const deleteAEFromStrategy = async (strategyId: string, aeId: string): Pr
 // ============ Strategy-scoped Prompt API ============
 
 export const getPromptByStrategy = async (strategyId: string): Promise<Prompt> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/prompt`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/prompt`, {
     method: "GET",
   });
 
@@ -220,7 +230,7 @@ export const getPromptByStrategy = async (strategyId: string): Promise<Prompt> =
 };
 
 export const updatePromptByStrategy = async (strategyId: string, body: string): Promise<Prompt> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/prompt`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/prompt`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -239,7 +249,7 @@ export const updatePromptByStrategy = async (strategyId: string, body: string): 
 // ============ Strategy-scoped Email Logs API ============
 
 export const getEmailLogsByStrategy = async (strategyId: string): Promise<EmailLog[]> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/email-logs`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/email-logs`, {
     method: "GET",
   });
 
@@ -287,7 +297,7 @@ export const generateEmailByStrategy = async (
   strategyId: string,
   request: GenerateEmailRequest
 ): Promise<GenerateResponse> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/generate`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -309,7 +319,7 @@ export const runTestCall = async (
   strategyId: string,
   gongCallId: string
 ): Promise<TestCallResponse> => {
-  const response = await fetch(`${API_BASE_URL}/strategies/${strategyId}/test-call`, {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/test-call`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -328,7 +338,7 @@ export const runTestCall = async (
 // ============ Legacy API (backward compatibility) ============
 
 export const getAEs = async (): Promise<AE[]> => {
-  const response = await fetch(`${API_BASE_URL}/aes`, {
+  const response = await authFetch(`${API_BASE_URL}/aes`, {
     method: "GET",
   });
 
@@ -341,7 +351,7 @@ export const getAEs = async (): Promise<AE[]> => {
 };
 
 export const createAE = async (email: string): Promise<AE> => {
-  const response = await fetch(`${API_BASE_URL}/aes`, {
+  const response = await authFetch(`${API_BASE_URL}/aes`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -358,7 +368,7 @@ export const createAE = async (email: string): Promise<AE> => {
 };
 
 export const getPrompt = async (): Promise<Prompt> => {
-  const response = await fetch(`${API_BASE_URL}/prompt`, {
+  const response = await authFetch(`${API_BASE_URL}/prompt`, {
     method: "GET",
   });
 
@@ -371,7 +381,7 @@ export const getPrompt = async (): Promise<Prompt> => {
 };
 
 export const updatePrompt = async (body: string): Promise<Prompt> => {
-  const response = await fetch(`${API_BASE_URL}/prompt`, {
+  const response = await authFetch(`${API_BASE_URL}/prompt`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -388,7 +398,7 @@ export const updatePrompt = async (body: string): Promise<Prompt> => {
 };
 
 export const getEmailLogs = async (): Promise<EmailLog[]> => {
-  const response = await fetch(`${API_BASE_URL}/email-logs`, {
+  const response = await authFetch(`${API_BASE_URL}/email-logs`, {
     method: "GET",
   });
   
@@ -404,7 +414,7 @@ export const generateEmail = async (
   ae_email: string,
   gong_call_id: string
 ): Promise<EmailLog> => {
-  const response = await fetch(`${API_BASE_URL}/generate`, {
+  const response = await authFetch(`${API_BASE_URL}/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

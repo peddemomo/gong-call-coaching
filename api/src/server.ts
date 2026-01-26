@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import healthRouter from "./routes/health";
 import aesRouter from "./routes/aes";
 import promptsRouter from "./routes/prompts";
@@ -9,6 +10,8 @@ import generateRouter from "./routes/generate";
 import strategiesRouter from "./routes/strategies";
 import userflowWebhookRouter from "./routes/userflowWebhook";
 import pollRouter from "./routes/poll";
+import authRouter from "./routes/auth";
+import { requireAuth } from "./middleware/auth";
 import { startPolling } from "./services/pollGongCalls";
 
 const app = express();
@@ -23,22 +26,26 @@ app.use(
 );
 
 app.use(express.json());
+app.use(cookieParser());
 
-// Routes
+// Public routes (no auth required)
 app.use("/health", healthRouter);
-app.use("/strategies", strategiesRouter);
+app.use("/auth", authRouter);
+
+// Protected routes (require authentication)
+app.use("/strategies", requireAuth, strategiesRouter);
 
 // Legacy routes (backward compatible - default to Default Strategy)
-app.use("/aes", aesRouter);
-app.use("/prompt", promptsRouter);
-app.use("/email-logs", emailLogsRouter);
-app.use("/generate", generateRouter);
+app.use("/aes", requireAuth, aesRouter);
+app.use("/prompt", requireAuth, promptsRouter);
+app.use("/email-logs", requireAuth, emailLogsRouter);
+app.use("/generate", requireAuth, generateRouter);
 
-// Userflow webhook for doctor info requests
+// Userflow webhook for doctor info requests (no auth - external webhook)
 app.use("/userflow-webhook", userflowWebhookRouter);
 
-// Polling endpoint for Gong calls
-app.use("/poll", pollRouter);
+// Polling endpoint for Gong calls (protected)
+app.use("/poll", requireAuth, pollRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

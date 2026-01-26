@@ -41,6 +41,17 @@ PORT=3000
 GONG_ACCESS_KEY=your_gong_access_key
 GONG_ACCESS_SECRET=your_gong_access_secret
 GONG_BASE_URL=https://api.gong.io
+
+# ============ Authentication ============
+# Google OAuth Client ID (from Google Cloud Console)
+GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+
+# Restrict access to specific email domain (e.g., yourcompany.com)
+# Users without this domain will be denied access
+ALLOWED_EMAIL_DOMAIN=yourcompany.com
+
+# Secret for signing JWT session tokens (use a long random string in production)
+JWT_SECRET=your-secure-random-string-here
 ```
 
 ### 3. Start the Web App
@@ -55,11 +66,56 @@ The web app will be running at http://localhost:5173
 
 #### Web Environment Variables
 
-Create a `web/.env` file (optional, defaults work for local dev):
+Create a `web/.env` file:
 
 ```
 VITE_API_BASE_URL=http://localhost:3000
+
+# Google OAuth Client ID (same as API - required for login)
+VITE_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
 ```
+
+## Authentication Setup
+
+This app uses Google SSO to restrict access to authorized team members only.
+
+### Setting up Google OAuth
+
+1. **Create a Google Cloud Project**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+
+2. **Configure OAuth Consent Screen**
+   - Navigate to APIs & Services > OAuth consent screen
+   - Select "Internal" if using Google Workspace (restricts to your org)
+   - Or "External" for any Google account (you'll control access via ALLOWED_EMAIL_DOMAIN)
+   - Fill in app name and required fields
+
+3. **Create OAuth Credentials**
+   - Navigate to APIs & Services > Credentials
+   - Click "Create Credentials" > "OAuth 2.0 Client ID"
+   - Select "Web application"
+   - Add Authorized JavaScript origins:
+     - `http://localhost:5173` (development)
+     - Your production frontend URL (e.g., `https://yourapp.com`)
+   - Add Authorized redirect URIs:
+     - Same as JavaScript origins
+   - Save and copy the **Client ID**
+
+4. **Configure Environment Variables**
+   - Add `GOOGLE_CLIENT_ID` to both `api/.env` and `web/.env`
+   - Set `ALLOWED_EMAIL_DOMAIN` to your company domain (e.g., `yourcompany.com`)
+   - Generate a secure `JWT_SECRET` for session tokens
+
+### How Authentication Works
+
+1. User clicks "Sign in with Google" on the login page
+2. Google authenticates the user and returns an ID token
+3. Frontend sends the token to `POST /auth/google`
+4. Backend verifies the token with Google
+5. Backend checks the email domain against `ALLOWED_EMAIL_DOMAIN`
+6. If authorized, a JWT session cookie is set (valid for 7 days)
+7. All subsequent API requests include the cookie for authentication
 
 ## API
 
