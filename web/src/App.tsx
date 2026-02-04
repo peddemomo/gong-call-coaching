@@ -1,8 +1,5 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { GoogleOAuthProvider } from "@react-oauth/google";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { LoginPage } from "./components/LoginPage";
 import {
   getStrategies,
   createStrategy,
@@ -21,8 +18,6 @@ import {
   runTestCall,
   TestCallResponse,
 } from "./api/client";
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 function AppContent() {
   const queryClient = useQueryClient();
@@ -297,44 +292,11 @@ function AppContent() {
   // Get selected strategy name
   const selectedStrategy = strategies?.find((s) => s.id === selectedStrategyId);
 
-  // Auth
-  const { user, logout } = useAuth();
-
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif", maxWidth: "900px", margin: "0 auto" }}>
-      {/* Header with user info */}
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Gong Call Coaching</h1>
-        {user && (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            {user.picture && (
-              <img
-                src={user.picture}
-                alt={user.name}
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                }}
-              />
-            )}
-            <span style={{ color: "#666", fontSize: "0.875rem" }}>{user.email}</span>
-            <button
-              onClick={logout}
-              style={{
-                padding: "0.375rem 0.75rem",
-                fontSize: "0.875rem",
-                backgroundColor: "#f0f0f0",
-                color: "#333",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              Sign Out
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Strategy Selector Section */}
@@ -1450,39 +1412,7 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
 }
 
 function App() {
-  const { user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "system-ui, sans-serif",
-        }}
-      >
-        <p style={{ color: "#666" }}>Loading...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <LoginPage />;
-  }
-
   return <AppContent />;
 }
 
-function AppWithProviders() {
-  return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </GoogleOAuthProvider>
-  );
-}
-
-export default AppWithProviders;
+export default App;
