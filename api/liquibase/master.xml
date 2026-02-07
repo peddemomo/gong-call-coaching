@@ -16,6 +16,7 @@
     <include file="migrations/008-strategy-enabled.xml"/>
     <include file="migrations/009-company-context-cache.xml"/>
     <include file="migrations/010-prospect-domain-sent.xml"/>
+    <include file="migrations/011-products-value-points.xml"/>
 
 </databaseChangeLog>
 

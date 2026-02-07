@@ -11,6 +11,7 @@ import {
   getTranscriptByCallId,
   getInternalEmails,
   getExternalEmails,
+  getExternalSpeakerNames,
   GongCallMetadata,
 } from "../integrations/gong/client";
 import { extractDomainFromEmail } from "../integrations/perplexity/client";
@@ -258,11 +259,13 @@ async function processCall(call: GongCallMetadata, result: PollResult): Promise<
     transcript,
   });
 
-  // Build context
+  // Build context (include external speaker names for value-point insights)
+  const externalSpeakerNames = getExternalSpeakerNames(call.parties);
   const context = {
     call_title: call.title,
     call_date: call.started,
     external_emails: externalEmails,
+    external_speaker_names: externalSpeakerNames.length > 0 ? externalSpeakerNames : undefined,
     transcript,
   };
 

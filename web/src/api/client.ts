@@ -41,6 +41,25 @@ export interface Prompt {
   created_at?: string;
 }
 
+// Product and value point types
+export interface ValuePoint {
+  id?: string;
+  product_id?: string;
+  listen_for: string;
+  insight_text: string;
+  sort_order?: number;
+  created_at?: string;
+}
+
+export interface Product {
+  id: string;
+  strategy_id: string;
+  title: string;
+  description: string | null;
+  created_at: string;
+  value_points: ValuePoint[];
+}
+
 // Email Log types
 export interface CallContext {
   call_title?: string;
@@ -151,6 +170,94 @@ export const deleteStrategy = async (strategyId: string): Promise<void> => {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || `Failed to delete strategy: ${response.statusText}`);
+  }
+};
+
+// ============ Strategy-scoped Products API ============
+
+export const getProductsByStrategy = async (strategyId: string): Promise<Product[]> => {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/products`, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to fetch products: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export interface CreateProductInput {
+  title: string;
+  description?: string;
+  value_points?: { listen_for: string; insight_text: string }[];
+}
+
+export const createProduct = async (
+  strategyId: string,
+  input: CreateProductInput
+): Promise<Product> => {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/products`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to create product: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export interface UpdateProductInput {
+  title?: string;
+  description?: string | null;
+  value_points?: { listen_for: string; insight_text: string }[];
+}
+
+export const updateProduct = async (
+  strategyId: string,
+  productId: string,
+  input: UpdateProductInput
+): Promise<Product> => {
+  const response = await authFetch(
+    `${API_BASE_URL}/strategies/${strategyId}/products/${productId}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to update product: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const deleteProduct = async (
+  strategyId: string,
+  productId: string
+): Promise<void> => {
+  const response = await authFetch(
+    `${API_BASE_URL}/strategies/${strategyId}/products/${productId}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to delete product: ${response.statusText}`);
   }
 };
 

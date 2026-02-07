@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Create products table -->
+    <changeSet id="011-create-products-table" author="system">
+        <createTable tableName="products">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="strategy_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- FK: products.strategy_id -> strategies.id -->
+    <changeSet id="011-fk-products-strategy" author="system">
+        <addForeignKeyConstraint
+            baseTableName="products"
+            baseColumnNames="strategy_id"
+            referencedTableName="strategies"
+            referencedColumnNames="id"
+            constraintName="fk_products_strategy"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- Create product_value_points table -->
+    <changeSet id="011-create-product-value-points-table" author="system">
+        <createTable tableName="product_value_points">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="product_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="listen_for" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="insight_text" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- FK: product_value_points.product_id -> products.id -->
+    <changeSet id="011-fk-value-points-product" author="system">
+        <addForeignKeyConstraint
+            baseTableName="product_value_points"
+            baseColumnNames="product_id"
+            referencedTableName="products"
+            referencedColumnNames="id"
+            constraintName="fk_product_value_points_product"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+</databaseChangeLog>

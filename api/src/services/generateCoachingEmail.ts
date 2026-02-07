@@ -11,6 +11,7 @@ export interface CallContext {
   call_title?: string;
   call_date?: string;
   external_emails?: string[];
+  external_speaker_names?: string[];
   transcript?: string;
   company_context?: string;
 }
@@ -108,6 +109,28 @@ export async function generateCoachingEmail(
   );
 
   const promptBody = promptResult.rows[0]?.body || "";
+
+  // Fetch products and value points for this strategy
+  const productsResult = await pool.query(
+    `SELECT p.id, p.title, p.description
+     FROM public.products p
+     WHERE p.strategy_id = $1
+     ORDER BY p.created_at ASC`,
+    [strategy_id]
+  );
+  const productRows = productsResult.rows as { id: string; title: string; description: string | null }[];
+  const productValuePoints: { productTitle: string; productDescription?: string; valuePoints: { listen_for: string; insight_text: string }[] }[] = [];
+  for (const p of productRows) {
+    const vpResult = await pool.query(
+      `SELECT listen_for, insight_text FROM public.product_value_points WHERE product_id = $1 ORDER BY sort_order ASC, created_at ASC`,
+      [p.id]
+    );
+    productValuePoints.push({
+      productTitle: p.title,
+      productDescription: p.description ?? undefined,
+      valuePoints: vpResult.rows as { listen_for: string; insight_text: string }[],
+    });
+  }
   
   // Check if we have a transcript to analyze
   const transcript = context?.transcript;
@@ -148,7 +171,9 @@ export async function generateCoachingEmail(
         call_date: context?.call_date,
         ae_email,
         external_emails: context?.external_emails,
+        external_speaker_names: context?.external_speaker_names,
         company_context: companyContextSummary,
+        product_value_points: productValuePoints,
       });
       
       subject = coachingResult.subject;

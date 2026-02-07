@@ -3,16 +3,41 @@
 Internal app for generating and sending AI-powered sales coaching emails
 based on Gong calls.
 
-## Quick Start
+## How to run the app (every time)
 
-**If you get `command not found: npm`** in Cursor’s terminal, use the project scripts instead (they set up Node for you):
+1. **Open a terminal** in the project root (the folder that contains `api/` and `web/`).
 
-- **API:** `./dev-api.sh`
-- **Web:** `./dev-web.sh`
+2. **Start the database and migrations** (only needed once per machine/session, or if you restarted):
+   ```bash
+   docker compose up db -d
+   docker compose --profile tools run --rm liquibase update
+   ```
 
-Run each in a separate terminal. Otherwise use the steps below.
+3. **Start the API** – in one terminal:
+   ```bash
+   ./dev-api.sh
+   ```
+   Leave it running. API will be at http://localhost:3000
+
+4. **Start the web app** – open a **second** terminal, same project root:
+   ```bash
+   ./dev-web.sh
+   ```
+   Web app will be at http://localhost:5173
+
+5. **Open in browser:** http://localhost:5173
+
+If you're already inside `api/` or `web/`, run `./run-dev.sh` from that folder instead of the commands above.
+
+---
+
+## Quick Start (detailed)
+
+**Where to run commands:** Use the project root (the folder that contains `api/` and `web/`). If your terminal is already inside `api/` or `web/`, run `cd ..` first to get back to the project root, or use the `run-dev.sh` script inside each folder (see below).
 
 ### 1. Start the Database and Run Migrations
+
+From the **project root**:
 
 ```bash
 docker compose up db -d
@@ -21,10 +46,16 @@ docker compose --profile tools run --rm liquibase update
 
 ### 2. Start the API
 
+In one terminal, from the **project root**:
+
 ```bash
-cd api
-npm install
-npm run dev
+./dev-api.sh
+```
+
+Or if you're already in the `api/` folder:
+
+```bash
+./run-dev.sh
 ```
 
 The API will be running at http://localhost:3000
@@ -63,10 +94,16 @@ JWT_SECRET=your-secure-random-string-here
 
 ### 3. Start the Web App
 
+In a **second** terminal, from the **project root**:
+
 ```bash
-cd web
-npm install
-npm run dev
+./dev-web.sh
+```
+
+Or if you're already in the `web/` folder:
+
+```bash
+./run-dev.sh
 ```
 
 The web app will be running at http://localhost:5173

@@ -11,8 +11,11 @@ import {
   createAEInStrategy,
   deleteAEFromStrategy,
   AE,
-  getPromptByStrategy,
-  updatePromptByStrategy,
+  getProductsByStrategy,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  Product,
   getEmailLogsByStrategy,
   EmailLog,
   runTestCall,
@@ -34,9 +37,16 @@ function AppContent() {
   const [showAllEmailLogs, setShowAllEmailLogs] = useState(false);
   const DISPLAY_LIMIT = 5;
 
-  // Prompt state
-  const [promptBody, setPromptBody] = useState("");
-  const [promptSaved, setPromptSaved] = useState(false);
+  // Products state
+  const [showNewProductForm, setShowNewProductForm] = useState(false);
+  const [newProductTitle, setNewProductTitle] = useState("");
+  const [newProductDescription, setNewProductDescription] = useState("");
+  const [newProductValuePoints, setNewProductValuePoints] = useState<{ listen_for: string; insight_text: string }[]>([{ listen_for: "", insight_text: "" }]);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingProductTitle, setEditingProductTitle] = useState("");
+  const [editingProductDescription, setEditingProductDescription] = useState("");
+  const [editingProductValuePoints, setEditingProductValuePoints] = useState<{ listen_for: string; insight_text: string }[]>([]);
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   // Strategies query
   const {
@@ -60,6 +70,9 @@ function AppContent() {
   useEffect(() => {
     setShowAllAEs(false);
     setShowAllEmailLogs(false);
+    setShowAllProducts(false);
+    setShowNewProductForm(false);
+    setEditingProductId(null);
   }, [selectedStrategyId]);
 
   // Editing strategy state
@@ -169,33 +182,78 @@ function AppContent() {
     deleteAEMutation.mutate({ strategyId: selectedStrategyId, aeId });
   };
 
-  // Prompt query (strategy-scoped)
+  // Products query (strategy-scoped)
   const {
-    data: prompt,
-    isLoading: isPromptLoading,
-    isError: isPromptError,
-    error: promptError,
+    data: products,
+    isLoading: isProductsLoading,
+    isError: isProductsError,
+    error: productsError,
   } = useQuery({
-    queryKey: ["prompt", selectedStrategyId],
-    queryFn: () => getPromptByStrategy(selectedStrategyId!),
+    queryKey: ["products", selectedStrategyId],
+    queryFn: () => getProductsByStrategy(selectedStrategyId!),
     enabled: !!selectedStrategyId,
   });
 
-  // Sync promptBody with fetched prompt
-  useEffect(() => {
-    if (prompt) {
-      setPromptBody(prompt.body);
-    }
-  }, [prompt]);
-
-  // Prompt mutation (strategy-scoped)
-  const promptMutation = useMutation({
-    mutationFn: ({ strategyId, body }: { strategyId: string; body: string }) =>
-      updatePromptByStrategy(strategyId, body),
+  // Prompt query (strategy-scoped)
+  // Create product mutation
+  const createProductMutation = useMutation({
+    mutationFn: ({
+      strategyId,
+      title,
+      description,
+      value_points,
+    }: {
+      strategyId: string;
+      title: string;
+      description?: string;
+      value_points: { listen_for: string; insight_text: string }[];
+    }) =>
+      createProduct(strategyId, {
+        title,
+        description: description || undefined,
+        value_points: value_points.filter((vp) => vp.listen_for.trim() || vp.insight_text.trim()),
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prompt", selectedStrategyId] });
-      setPromptSaved(true);
-      setTimeout(() => setPromptSaved(false), 2000);
+      queryClient.invalidateQueries({ queryKey: ["products", selectedStrategyId] });
+      setShowNewProductForm(false);
+      setNewProductTitle("");
+      setNewProductDescription("");
+      setNewProductValuePoints([{ listen_for: "", insight_text: "" }]);
+    },
+  });
+
+  // Update product mutation
+  const updateProductMutation = useMutation({
+    mutationFn: ({
+      strategyId,
+      productId,
+      title,
+      description,
+      value_points,
+    }: {
+      strategyId: string;
+      productId: string;
+      title?: string;
+      description?: string | null;
+      value_points?: { listen_for: string; insight_text: string }[];
+    }) =>
+      updateProduct(strategyId, productId, {
+        title,
+        description,
+        value_points,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products", selectedStrategyId] });
+      setEditingProductId(null);
+    },
+  });
+
+  // Delete product mutation
+  const deleteProductMutation = useMutation({
+    mutationFn: ({ strategyId, productId }: { strategyId: string; productId: string }) =>
+      deleteProduct(strategyId, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products", selectedStrategyId] });
     },
   });
 
@@ -281,6 +339,80 @@ function AppContent() {
     }
     setFormError(null);
     createAEMutation.mutate({ strategyId: selectedStrategyId, email: email.trim() });
+  };
+
+  const handleStartEditProduct = (product: Product) => {
+    setEditingProductId(product.id);
+    setEditingProductTitle(product.title);
+    setEditingProductDescription(product.description || "");
+    setEditingProductValuePoints(
+      product.value_points.length > 0
+        ? product.value_points.map((vp) => ({ listen_for: vp.listen_for, insight_text: vp.insight_text }))
+        : [{ listen_for: "", insight_text: "" }]
+    );
+  };
+
+  const handleSaveProduct = () => {
+    if (!selectedStrategyId || !editingProductId) return;
+    const valuePoints = editingProductValuePoints.filter((vp) => vp.listen_for.trim() || vp.insight_text.trim());
+    updateProductMutation.mutate({
+      strategyId: selectedStrategyId,
+      productId: editingProductId,
+      title: editingProductTitle.trim(),
+      description: editingProductDescription.trim() || null,
+      value_points: valuePoints.length > 0 ? valuePoints : [],
+    });
+  };
+
+  const handleSubmitNewProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStrategyId || !newProductTitle.trim()) return;
+    const valuePoints = newProductValuePoints.filter((vp) => vp.listen_for.trim() || vp.insight_text.trim());
+    createProductMutation.mutate({
+      strategyId: selectedStrategyId,
+      title: newProductTitle.trim(),
+      description: newProductDescription.trim() || undefined,
+      value_points: valuePoints.length > 0 ? valuePoints : [],
+    });
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    if (!selectedStrategyId) return;
+    if (!confirm("Are you sure you want to delete this product and its value points?")) return;
+    deleteProductMutation.mutate({ strategyId: selectedStrategyId, productId });
+  };
+
+  const addNewValuePoint = (isEditing: boolean) => {
+    if (isEditing) {
+      setEditingProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "" }]);
+    } else {
+      setNewProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "" }]);
+    }
+  };
+
+  const removeValuePoint = (index: number, isEditing: boolean) => {
+    if (isEditing) {
+      setEditingProductValuePoints((prev) => prev.filter((_, i) => i !== index));
+    } else {
+      setNewProductValuePoints((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateValuePoint = (
+    index: number,
+    field: "listen_for" | "insight_text",
+    value: string,
+    isEditing: boolean
+  ) => {
+    if (isEditing) {
+      setEditingProductValuePoints((prev) =>
+        prev.map((vp, i) => (i === index ? { ...vp, [field]: value } : vp))
+      );
+    } else {
+      setNewProductValuePoints((prev) =>
+        prev.map((vp, i) => (i === index ? { ...vp, [field]: value } : vp))
+      );
+    }
   };
 
   const handleSubmitStrategy = (e: React.FormEvent) => {
@@ -702,6 +834,457 @@ function AppContent() {
             )}
           </section>
 
+          {/* Products Section - main content (replaces Prompt) */}
+          <section style={{ marginTop: "2rem" }}>
+            <h2>Products</h2>
+            <p style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+              Add products and value points. When an external participant says something related to a value point on a call, the AI surfaces that insight in the coaching email.
+            </p>
+
+            {!showNewProductForm && (
+              <button
+                onClick={() => setShowNewProductForm(true)}
+                style={{
+                  padding: "0.375rem 0.75rem",
+                  fontSize: "0.875rem",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  marginBottom: "1rem",
+                }}
+              >
+                + New Product
+              </button>
+            )}
+
+            {showNewProductForm && (
+              <form
+                onSubmit={handleSubmitNewProduct}
+                style={{
+                  marginBottom: "1.5rem",
+                  padding: "1rem",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "8px",
+                  border: "1px solid #e9ecef",
+                }}
+              >
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <input
+                    type="text"
+                    placeholder="Product title"
+                    value={newProductTitle}
+                    onChange={(e) => setNewProductTitle(e.target.value)}
+                    required
+                    style={{
+                      width: "100%",
+                      maxWidth: "400px",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "1rem",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <textarea
+                    placeholder="Description (optional)"
+                    value={newProductDescription}
+                    onChange={(e) => setNewProductDescription(e.target.value)}
+                    rows={2}
+                    style={{
+                      width: "100%",
+                      maxWidth: "500px",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.875rem",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      resize: "vertical",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <strong style={{ fontSize: "0.875rem" }}>Value points</strong>
+                  {newProductValuePoints.map((vp, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        alignItems: "flex-start",
+                        marginTop: "0.5rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Listen for (what to hear on the call)"
+                        value={vp.listen_for}
+                        onChange={(e) => updateValuePoint(index, "listen_for", e.target.value, false)}
+                        style={{
+                          flex: "1",
+                          minWidth: "180px",
+                          padding: "0.4rem 0.5rem",
+                          fontSize: "0.875rem",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Insight to surface when external says it"
+                        value={vp.insight_text}
+                        onChange={(e) => updateValuePoint(index, "insight_text", e.target.value, false)}
+                        style={{
+                          flex: "1",
+                          minWidth: "180px",
+                          padding: "0.4rem 0.5rem",
+                          fontSize: "0.875rem",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeValuePoint(index, false)}
+                        disabled={newProductValuePoints.length <= 1}
+                        style={{
+                          padding: "0.4rem 0.5rem",
+                          fontSize: "0.75rem",
+                          backgroundColor: "#fce8e6",
+                          color: "#c5221f",
+                          border: "1px solid #f5c6cb",
+                          borderRadius: "4px",
+                          cursor: newProductValuePoints.length <= 1 ? "not-allowed" : "pointer",
+                          opacity: newProductValuePoints.length <= 1 ? 0.5 : 1,
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => addNewValuePoint(false)}
+                    style={{
+                      marginTop: "0.5rem",
+                      padding: "0.35rem 0.6rem",
+                      fontSize: "0.8rem",
+                      backgroundColor: "#e8f0fe",
+                      color: "#1a73e8",
+                      border: "1px solid #a8c7fa",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    + Add value point
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+                  <button
+                    type="submit"
+                    disabled={createProductMutation.isPending || !newProductTitle.trim()}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      fontSize: "0.875rem",
+                      backgroundColor: "#0066cc",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: createProductMutation.isPending || !newProductTitle.trim() ? "not-allowed" : "pointer",
+                      opacity: createProductMutation.isPending || !newProductTitle.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    {createProductMutation.isPending ? "Creating..." : "Create Product"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewProductForm(false);
+                      setNewProductTitle("");
+                      setNewProductDescription("");
+                      setNewProductValuePoints([{ listen_for: "", insight_text: "" }]);
+                    }}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      fontSize: "0.875rem",
+                      backgroundColor: "#6c757d",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {createProductMutation.isError && (
+                  <p style={{ color: "#cc0000", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                    {createProductMutation.error instanceof Error
+                      ? createProductMutation.error.message
+                      : "Failed to create product"}
+                  </p>
+                )}
+              </form>
+            )}
+
+            {isProductsLoading && <p>Loading products...</p>}
+            {isProductsError && (
+              <div style={{ color: "#cc0000", padding: "1rem", backgroundColor: "#fff0f0", borderRadius: "4px" }}>
+                <p style={{ margin: 0 }}>
+                  Error loading products: {productsError instanceof Error ? productsError.message : "Unknown error"}
+                </p>
+              </div>
+            )}
+
+            {products && products.length === 0 && !showNewProductForm && (
+              <p style={{ color: "#666" }}>No products yet. Add one to define value points for coaching emails.</p>
+            )}
+
+            {products &&
+              products.length > 0 &&
+              (showAllProducts ? products : products.slice(0, DISPLAY_LIMIT)).map((product: Product) => (
+                <div
+                  key={product.id}
+                  style={{
+                    marginBottom: "1rem",
+                    padding: "1rem",
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "8px",
+                    border: "1px solid #e9ecef",
+                  }}
+                >
+                  {editingProductId === product.id ? (
+                    <div>
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <input
+                          type="text"
+                          value={editingProductTitle}
+                          onChange={(e) => setEditingProductTitle(e.target.value)}
+                          style={{
+                            width: "100%",
+                            maxWidth: "400px",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "1rem",
+                            border: "1px solid #ccc",
+                            borderRadius: "4px",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <textarea
+                          value={editingProductDescription}
+                          onChange={(e) => setEditingProductDescription(e.target.value)}
+                          placeholder="Description (optional)"
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            maxWidth: "500px",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.875rem",
+                            border: "1px solid #ccc",
+                            borderRadius: "4px",
+                            resize: "vertical",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <strong style={{ fontSize: "0.875rem" }}>Value points</strong>
+                        {editingProductValuePoints.map((vp, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: "flex",
+                              gap: "0.5rem",
+                              alignItems: "flex-start",
+                              marginTop: "0.5rem",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Listen for"
+                              value={vp.listen_for}
+                              onChange={(e) => updateValuePoint(index, "listen_for", e.target.value, true)}
+                              style={{
+                                flex: "1",
+                                minWidth: "180px",
+                                padding: "0.4rem 0.5rem",
+                                fontSize: "0.875rem",
+                                border: "1px solid #ccc",
+                                borderRadius: "4px",
+                              }}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Insight to surface"
+                              value={vp.insight_text}
+                              onChange={(e) => updateValuePoint(index, "insight_text", e.target.value, true)}
+                              style={{
+                                flex: "1",
+                                minWidth: "180px",
+                                padding: "0.4rem 0.5rem",
+                                fontSize: "0.875rem",
+                                border: "1px solid #ccc",
+                                borderRadius: "4px",
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeValuePoint(index, true)}
+                              disabled={editingProductValuePoints.length <= 1}
+                              style={{
+                                padding: "0.4rem 0.5rem",
+                                fontSize: "0.75rem",
+                                backgroundColor: "#fce8e6",
+                                color: "#c5221f",
+                                border: "1px solid #f5c6cb",
+                                borderRadius: "4px",
+                                cursor: editingProductValuePoints.length <= 1 ? "not-allowed" : "pointer",
+                                opacity: editingProductValuePoints.length <= 1 ? 0.5 : 1,
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addNewValuePoint(true)}
+                          style={{
+                            marginTop: "0.5rem",
+                            padding: "0.35rem 0.6rem",
+                            fontSize: "0.8rem",
+                            backgroundColor: "#e8f0fe",
+                            color: "#1a73e8",
+                            border: "1px solid #a8c7fa",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          + Add value point
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                          onClick={handleSaveProduct}
+                          disabled={
+                            updateProductMutation.isPending ||
+                            !editingProductTitle.trim()
+                          }
+                          style={{
+                            padding: "0.5rem 1rem",
+                            fontSize: "0.875rem",
+                            backgroundColor: "#28a745",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor:
+                              updateProductMutation.isPending || !editingProductTitle.trim()
+                                ? "not-allowed"
+                                : "pointer",
+                            opacity:
+                              updateProductMutation.isPending || !editingProductTitle.trim() ? 0.6 : 1,
+                          }}
+                        >
+                          {updateProductMutation.isPending ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          onClick={() => setEditingProductId(null)}
+                          style={{
+                            padding: "0.5rem 1rem",
+                            fontSize: "0.875rem",
+                            backgroundColor: "#6c757d",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      {updateProductMutation.isError && (
+                        <p style={{ color: "#cc0000", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                          {updateProductMutation.error instanceof Error
+                            ? updateProductMutation.error.message
+                            : "Failed to update product"}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <strong style={{ fontSize: "1rem" }}>{product.title}</strong>
+                        {product.description && (
+                          <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.875rem", color: "#666" }}>
+                            {product.description}
+                          </p>
+                        )}
+                        <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.8rem", color: "#888" }}>
+                          {product.value_points.length} value point{product.value_points.length !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                        <button
+                          onClick={() => handleStartEditProduct(product)}
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            fontSize: "0.75rem",
+                            backgroundColor: "#f0f0f0",
+                            color: "#333",
+                            border: "1px solid #ccc",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(product.id)}
+                          disabled={deleteProductMutation.isPending}
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            fontSize: "0.75rem",
+                            backgroundColor: "#fce8e6",
+                            color: "#c5221f",
+                            border: "1px solid #f5c6cb",
+                            borderRadius: "4px",
+                            cursor: deleteProductMutation.isPending ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+            {products && products.length > DISPLAY_LIMIT && !editingProductId && (
+              <button
+                onClick={() => setShowAllProducts(!showAllProducts)}
+                style={{
+                  marginTop: "0.75rem",
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.875rem",
+                  backgroundColor: "transparent",
+                  color: "#0066cc",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                {showAllProducts ? "Show less" : `See ${products.length - DISPLAY_LIMIT} more`}
+              </button>
+            )}
+          </section>
+
           {/* Test Call Section */}
           <section
             style={{
@@ -806,73 +1389,6 @@ function AppContent() {
               Runs the full pipeline: fetch from Gong → find AE → classify → generate output.
               Test runs can be repeated any number of times for prompt iteration.
             </p>
-          </section>
-
-          {/* Prompt Section */}
-          <section style={{ marginTop: "3rem" }}>
-            <h2>Prompt</h2>
-
-            {isPromptLoading && <p>Loading prompt...</p>}
-
-            {isPromptError && (
-              <div style={{ color: "#cc0000", padding: "1rem", backgroundColor: "#fff0f0", borderRadius: "4px" }}>
-                <p style={{ margin: 0 }}>
-                  Error loading prompt: {promptError instanceof Error ? promptError.message : "Unknown error"}
-                </p>
-              </div>
-            )}
-
-            {!isPromptLoading && !isPromptError && (
-              <div>
-                <textarea
-                  value={promptBody}
-                  onChange={(e) => setPromptBody(e.target.value)}
-                  disabled={promptMutation.isPending}
-                  placeholder="Enter your coaching prompt here..."
-                  style={{
-                    width: "100%",
-                    minHeight: "200px",
-                    padding: "0.75rem",
-                    fontSize: "1rem",
-                    fontFamily: "monospace",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    resize: "vertical",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <div style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "1rem" }}>
-                  <button
-                    onClick={() =>
-                      promptMutation.mutate({ strategyId: selectedStrategyId, body: promptBody })
-                    }
-                    disabled={promptMutation.isPending || !promptBody.trim()}
-                    style={{
-                      padding: "0.5rem 1rem",
-                      fontSize: "1rem",
-                      backgroundColor: "#0066cc",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: promptMutation.isPending || !promptBody.trim() ? "not-allowed" : "pointer",
-                      opacity: promptMutation.isPending || !promptBody.trim() ? 0.6 : 1,
-                    }}
-                  >
-                    {promptMutation.isPending ? "Saving..." : "Save Prompt"}
-                  </button>
-                  {promptSaved && (
-                    <span style={{ color: "#1e7e34", fontWeight: 500 }}>
-                      Saved!
-                    </span>
-                  )}
-                  {promptMutation.isError && (
-                    <span style={{ color: "#cc0000" }}>
-                      Error: {promptMutation.error instanceof Error ? promptMutation.error.message : "Failed to save"}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
           </section>
 
           {/* Email Logs Section */}

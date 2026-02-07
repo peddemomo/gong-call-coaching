@@ -208,6 +208,15 @@ export function getExternalEmails(parties: GongParticipant[]): string[] {
 }
 
 /**
+ * Helper to get external participant names (for value-point / insight attribution in coaching email)
+ */
+export function getExternalSpeakerNames(parties: GongParticipant[]): string[] {
+  return parties
+    .filter((p) => p.affiliation.toLowerCase() === "external" && p.name)
+    .map((p) => p.name);
+}
+
+/**
  * Fetch recent completed calls from Gong
  * Uses the /v2/calls endpoint with date filters
  * 
