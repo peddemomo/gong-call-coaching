@@ -5,6 +5,13 @@ based on Gong calls.
 
 ## Quick Start
 
+**If you get `command not found: npm`** in Cursor’s terminal, use the project scripts instead (they set up Node for you):
+
+- **API:** `./dev-api.sh`
+- **Web:** `./dev-web.sh`
+
+Run each in a separate terminal. Otherwise use the steps below.
+
 ### 1. Start the Database and Run Migrations
 
 ```bash
