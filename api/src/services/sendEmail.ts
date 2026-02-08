@@ -90,6 +90,21 @@ function formatCoachingToHtml(coachingText: string): string {
       if (l.includes('<table border="0" cellpadding="0"')) {
         return l;
       }
+      // H2 headings (## Title)
+      const h2Match = l.match(/^#{1,2}\s+(.+)$/);
+      if (h2Match) {
+        return `<h2 style="margin:24px 0 8px;font-size:20px;font-weight:700;color:#28243d;font-family:'IBM Plex Sans',Arial,Helvetica,sans-serif;border-bottom:2px solid #ffb800;padding-bottom:6px;">${h2Match[1]}</h2>`;
+      }
+      // H3 headings (### Subtitle)
+      const h3Match = l.match(/^###\s+(.+)$/);
+      if (h3Match) {
+        return `<h3 style="margin:20px 0 6px;font-size:17px;font-weight:600;color:#28243d;font-family:'IBM Plex Sans',Arial,Helvetica,sans-serif;">${h3Match[1]}</h3>`;
+      }
+      // Bullet points (- item)
+      const bulletMatch = l.match(/^[\s]*[-*]\s+(.+)$/);
+      if (bulletMatch) {
+        return `<p style="margin:6px 0 6px 16px;padding-left:8px;border-left:3px solid #ffb800;">${bulletMatch[1]}</p>`;
+      }
       // Numbered list items
       if (/^\d+\.\s/.test(l)) {
         const numMatch = l.match(/^\d+\./);
