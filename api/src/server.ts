@@ -8,6 +8,7 @@ import promptsRouter from "./routes/prompts";
 import emailLogsRouter from "./routes/emailLogs";
 import generateRouter from "./routes/generate";
 import strategiesRouter from "./routes/strategies";
+import productsRouter from "./routes/products";
 import userflowWebhookRouter from "./routes/userflowWebhook";
 import pollRouter from "./routes/poll";
 import authRouter from "./routes/auth";
@@ -38,6 +39,8 @@ app.use("/health", healthRouter);
 app.use("/auth", authRouter);
 
 // App routes (no auth - auth disabled for local access)
+// Mount products first (more specific path) so POST /strategies/:id/products is matched
+app.use("/strategies/:strategyId/products", productsRouter);
 app.use("/strategies", strategiesRouter);
 
 // Legacy routes (backward compatible - default to Default Strategy)

@@ -99,17 +99,6 @@ export async function generateCoachingEmail(
     }
   }
 
-  // Fetch the active prompt for this strategy
-  const promptResult = await pool.query(
-    `SELECT body FROM public.prompts 
-     WHERE strategy_id = $1 AND is_active = true 
-     ORDER BY created_at DESC 
-     LIMIT 1`,
-    [strategy_id]
-  );
-
-  const promptBody = promptResult.rows[0]?.body || "";
-
   // Fetch products and value points for this strategy
   const productsResult = await pool.query(
     `SELECT p.id, p.title, p.description
@@ -157,15 +146,10 @@ export async function generateCoachingEmail(
     // No transcript available - use placeholder
     subject = "Your Coaching Feedback";
     body = "[No transcript available for this call - coaching feedback could not be generated]";
-  } else if (!promptBody) {
-    // No prompt configured - use placeholder
-    subject = "Your Coaching Feedback";
-    body = "[No coaching prompt configured for this strategy - please configure a prompt to enable AI coaching feedback]";
   } else {
     // Generate coaching feedback using OpenAI
     try {
       const coachingResult = await generateCoachingFeedback({
-        prompt: promptBody,
         transcript,
         call_title: context?.call_title,
         call_date: context?.call_date,

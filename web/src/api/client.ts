@@ -207,8 +207,15 @@ export const createProduct = async (
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `Failed to create product: ${response.statusText}`);
+    const text = await response.text();
+    let error: { error?: string } = {};
+    try {
+      error = text ? JSON.parse(text) : {};
+    } catch {
+      if (text) error = { error: text };
+    }
+    const message = error?.error || `Failed to create product: ${response.statusText}`;
+    throw new Error(typeof message === "string" ? message : "Failed to create product");
   }
 
   return response.json();

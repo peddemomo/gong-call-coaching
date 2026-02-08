@@ -211,7 +211,9 @@ function AppContent() {
       createProduct(strategyId, {
         title,
         description: description || undefined,
-        value_points: value_points.filter((vp) => vp.listen_for.trim() || vp.insight_text.trim()),
+        value_points: value_points.filter(
+          (vp) => vp.listen_for.trim().length > 0 && vp.insight_text.trim().length > 0
+        ),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products", selectedStrategyId] });
@@ -367,12 +369,14 @@ function AppContent() {
   const handleSubmitNewProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStrategyId || !newProductTitle.trim()) return;
-    const valuePoints = newProductValuePoints.filter((vp) => vp.listen_for.trim() || vp.insight_text.trim());
+    const valuePoints = newProductValuePoints.filter(
+      (vp) => vp.listen_for.trim().length > 0 && vp.insight_text.trim().length > 0
+    );
     createProductMutation.mutate({
       strategyId: selectedStrategyId,
       title: newProductTitle.trim(),
       description: newProductDescription.trim() || undefined,
-      value_points: valuePoints.length > 0 ? valuePoints : [],
+      value_points: valuePoints,
     });
   };
 
@@ -1041,7 +1045,7 @@ function AppContent() {
             )}
 
             {products && products.length === 0 && !showNewProductForm && (
-              <p style={{ color: "#666" }}>No products yet. Add one to define value points for coaching emails.</p>
+              <p style={{ color: "#999", fontStyle: "italic" }}>No products yet. Click "+ New Product" to add your first product and its value points.</p>
             )}
 
             {products &&

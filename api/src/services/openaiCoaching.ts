@@ -33,7 +33,6 @@ export interface ProductValuePointInput {
 }
 
 export interface CoachingInput {
-  prompt: string;
   transcript: string;
   call_title?: string;
   call_date?: string;
@@ -57,7 +56,7 @@ export async function generateCoachingFeedback(
 ): Promise<CoachingOutput> {
   const client = getOpenAIClient();
   
-  const { prompt, transcript, call_title, call_date, ae_email, external_emails, external_speaker_names, company_context, product_value_points } = input;
+  const { transcript, call_title, call_date, ae_email, external_emails, external_speaker_names, company_context, product_value_points } = input;
   
   // Build context for the AI
   let contextInfo = "";
@@ -98,10 +97,9 @@ export async function generateCoachingFeedback(
     }
   }
   
-  const systemMessage = `You are an expert sales coach providing feedback to account executives based on their sales calls. 
+  const systemMessage = `You are an expert sales coach providing feedback to account executives based on their sales calls.
 Your feedback should be constructive, specific, and actionable.
-
-${prompt}${productValuePointsBlock}`;
+${productValuePointsBlock}`;
 
   const userMessage = `${contextInfo ? `## Call Context\n${contextInfo}\n` : ""}## Call Transcript
 ${transcript}
