@@ -58,53 +58,65 @@ export async function generateCoachingFeedback(
   
   const { transcript, call_title, call_date, ae_email, external_emails, external_speaker_names, company_context, product_value_points } = input;
   
-  // Build context for the AI
-  let contextInfo = "";
-  if (call_title) {
-    contextInfo += `Call Title: ${call_title}\n`;
-  }
-  if (call_date) {
-    contextInfo += `Call Date: ${call_date}\n`;
-  }
-  if (ae_email) {
-    contextInfo += `AE Email: ${ae_email}\n`;
-  }
+  // Build call metadata for context
+  let callMeta = "";
+  if (call_title) callMeta += `Call Title: ${call_title}\n`;
+  if (call_date) callMeta += `Call Date: ${call_date}\n`;
+  if (ae_email) callMeta += `AE Email: ${ae_email}\n`;
   if (external_emails && external_emails.length > 0) {
-    contextInfo += `External Participants: ${external_emails.join(", ")}\n`;
+    callMeta += `External Participant Emails: ${external_emails.join(", ")}\n`;
   }
   if (external_speaker_names && external_speaker_names.length > 0) {
-    contextInfo += `External participants on this call (by name): ${external_speaker_names.join(", ")}. When something they say relates to a value point below, include the corresponding insight in your feedback.\n`;
+    callMeta += `External Participant Names: ${external_speaker_names.join(", ")}\n`;
   }
-  if (company_context) {
-    contextInfo += `\n## Prospect Company Context\n${company_context}\n`;
-  }
-  
-  // Build product value points section for the prompt
-  let productValuePointsBlock = "";
+
+  // Build product catalogue for the system prompt
+  let productCatalogue = "";
   if (product_value_points && product_value_points.length > 0) {
-    productValuePointsBlock = "\n\n## Product value points\n";
-    productValuePointsBlock += "For each product below, listen for the described topics on the call. If an external participant says something related to a value point, include the corresponding insight in your coaching email.\n\n";
+    productCatalogue = "\n\n## Products & Value Points\n\n";
     for (const product of product_value_points) {
       if (product.valuePoints.length === 0) continue;
-      productValuePointsBlock += `### ${product.productTitle}\n`;
+      productCatalogue += `### ${product.productTitle}\n`;
       if (product.productDescription) {
-        productValuePointsBlock += `${product.productDescription}\n\n`;
+        productCatalogue += `${product.productDescription}\n`;
       }
       for (const vp of product.valuePoints) {
-        productValuePointsBlock += `- Listen for: ${vp.listen_for}. If an external participant says something related, include this insight in the email: ${vp.insight_text}\n`;
+        productCatalogue += `- CONDITION: ${vp.listen_for}\n  INSIGHT: ${vp.insight_text}\n`;
       }
-      productValuePointsBlock += "\n";
+      productCatalogue += "\n";
     }
   }
-  
-  const systemMessage = `You are an expert sales coach providing feedback to account executives based on their sales calls.
-Your feedback should be constructive, specific, and actionable.
-${productValuePointsBlock}`;
 
-  const userMessage = `${contextInfo ? `## Call Context\n${contextInfo}\n` : ""}## Call Transcript
+  // System message: prescribes exact output structure
+  const systemMessage = `You are an expert sales coach providing feedback to account executives after their sales calls. Your feedback should be constructive, specific, and actionable.
+
+Structure your email output EXACTLY as follows:
+
+## 1. Prospect Overview
+Begin with a 2-3 sentence description of the prospect's business. Use the "Prospect Company Context" provided in the call context to write this. Tailor it to what is relevant for the sales conversation.
+
+## 2. Product Coaching
+Below is a list of products, each with value points. Each value point has a CONDITION and an INSIGHT.
+
+For each value point:
+  1. Check whether the CONDITION is true based on the call transcript and/or the prospect's business context.
+  2. If the CONDITION is true, include a coaching bullet point under that product's title in the email. Use the INSIGHT as the basis for the bullet, adapted to the specific prospect and what was discussed on the call.
+  3. If the CONDITION is NOT true for a value point, do NOT include it.
+
+Only include a product heading in the email if at least one of its value points triggered. If none of a product's value points triggered, omit that product entirely.
+
+Keep the tone professional, concise, and actionable. Do not add sections beyond the prospect overview and the triggered product sections.
+${productCatalogue}`;
+
+  // User message: call context + transcript
+  let userContext = "";
+  if (callMeta) userContext += `## Call Metadata\n${callMeta}\n`;
+  if (company_context) userContext += `## Prospect Company Context\n${company_context}\n\n`;
+
+  const userMessage = `${userContext}## Call Transcript
 ${transcript}
 
-Please analyze this call and provide coaching feedback.`;
+Analyze this call and provide coaching feedback following the structure described in your instructions.`;
 
   console.log(`[OpenAI] Generating coaching feedback for call: ${call_title || "Unknown"}`);
 
