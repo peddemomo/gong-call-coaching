@@ -107,7 +107,7 @@ For each value point:
   3. If the CONDITION is NOT true for a value point, do NOT include it.
   4. If a triggered value point has a LINK, include "Learn More: <url>" immediately after the coaching bullet so the reader can access the resource.
 
-Only include a product heading in the email if at least one of its value points triggered. If none of a product's value points triggered, omit that product entirely.
+A single product can have multiple triggered value points -- include a separate bullet for EACH triggered value point under that product's heading. Only include a product heading in the email if at least one of its value points triggered. If none of a product's value points triggered, omit that product entirely.
 
 IMPORTANT: Include a MAXIMUM of 3 products in the email. If more than 3 products have triggered value points, select the 3 most relevant to the call and prospect context and omit the rest. If 3 or fewer triggered, include all that triggered.
 
