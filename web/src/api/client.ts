@@ -47,6 +47,7 @@ export interface ValuePoint {
   product_id?: string;
   listen_for: string;
   insight_text: string;
+  link?: string;
   sort_order?: number;
   created_at?: string;
 }

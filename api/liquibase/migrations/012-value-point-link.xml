@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Add optional link column to product_value_points -->
+    <changeSet id="012-add-link-to-value-points" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not><columnExists tableName="product_value_points" columnName="link"/></not>
+        </preConditions>
+        <addColumn tableName="product_value_points">
+            <column name="link" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

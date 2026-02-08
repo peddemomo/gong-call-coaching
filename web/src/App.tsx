@@ -41,11 +41,11 @@ function AppContent() {
   const [showNewProductForm, setShowNewProductForm] = useState(false);
   const [newProductTitle, setNewProductTitle] = useState("");
   const [newProductDescription, setNewProductDescription] = useState("");
-  const [newProductValuePoints, setNewProductValuePoints] = useState<{ listen_for: string; insight_text: string }[]>([{ listen_for: "", insight_text: "" }]);
+  const [newProductValuePoints, setNewProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string }[]>([{ listen_for: "", insight_text: "", link: "" }]);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editingProductTitle, setEditingProductTitle] = useState("");
   const [editingProductDescription, setEditingProductDescription] = useState("");
-  const [editingProductValuePoints, setEditingProductValuePoints] = useState<{ listen_for: string; insight_text: string }[]>([]);
+  const [editingProductValuePoints, setEditingProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string }[]>([]);
   const [showAllProducts, setShowAllProducts] = useState(false);
 
   // Strategies query
@@ -206,7 +206,7 @@ function AppContent() {
       strategyId: string;
       title: string;
       description?: string;
-      value_points: { listen_for: string; insight_text: string }[];
+      value_points: { listen_for: string; insight_text: string; link?: string }[];
     }) =>
       createProduct(strategyId, {
         title,
@@ -220,7 +220,7 @@ function AppContent() {
       setShowNewProductForm(false);
       setNewProductTitle("");
       setNewProductDescription("");
-      setNewProductValuePoints([{ listen_for: "", insight_text: "" }]);
+      setNewProductValuePoints([{ listen_for: "", insight_text: "", link: "" }]);
     },
   });
 
@@ -237,7 +237,7 @@ function AppContent() {
       productId: string;
       title?: string;
       description?: string | null;
-      value_points?: { listen_for: string; insight_text: string }[];
+      value_points?: { listen_for: string; insight_text: string; link?: string }[];
     }) =>
       updateProduct(strategyId, productId, {
         title,
@@ -349,8 +349,8 @@ function AppContent() {
     setEditingProductDescription(product.description || "");
     setEditingProductValuePoints(
       product.value_points.length > 0
-        ? product.value_points.map((vp) => ({ listen_for: vp.listen_for, insight_text: vp.insight_text }))
-        : [{ listen_for: "", insight_text: "" }]
+        ? product.value_points.map((vp) => ({ listen_for: vp.listen_for, insight_text: vp.insight_text, link: vp.link || "" }))
+        : [{ listen_for: "", insight_text: "", link: "" }]
     );
   };
 
@@ -388,9 +388,9 @@ function AppContent() {
 
   const addNewValuePoint = (isEditing: boolean) => {
     if (isEditing) {
-      setEditingProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "" }]);
+      setEditingProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "", link: "" }]);
     } else {
-      setNewProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "" }]);
+      setNewProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "", link: "" }]);
     }
   };
 
@@ -404,7 +404,7 @@ function AppContent() {
 
   const updateValuePoint = (
     index: number,
-    field: "listen_for" | "insight_text",
+    field: "listen_for" | "insight_text" | "link",
     value: string,
     isEditing: boolean
   ) => {
@@ -951,6 +951,20 @@ function AppContent() {
                           borderRadius: "4px",
                         }}
                       />
+                      <input
+                        type="url"
+                        placeholder="Link (optional)"
+                        value={vp.link}
+                        onChange={(e) => updateValuePoint(index, "link", e.target.value, false)}
+                        style={{
+                          flex: "0.7",
+                          minWidth: "140px",
+                          padding: "0.4rem 0.5rem",
+                          fontSize: "0.875rem",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                        }}
+                      />
                       <button
                         type="button"
                         onClick={() => removeValuePoint(index, false)}
@@ -1010,7 +1024,7 @@ function AppContent() {
                       setShowNewProductForm(false);
                       setNewProductTitle("");
                       setNewProductDescription("");
-                      setNewProductValuePoints([{ listen_for: "", insight_text: "" }]);
+                      setNewProductValuePoints([{ listen_for: "", insight_text: "", link: "" }]);
                     }}
                     style={{
                       padding: "0.5rem 1rem",
@@ -1138,6 +1152,20 @@ function AppContent() {
                                 borderRadius: "4px",
                               }}
                             />
+                            <input
+                              type="url"
+                              placeholder="Link (optional)"
+                              value={vp.link}
+                              onChange={(e) => updateValuePoint(index, "link", e.target.value, true)}
+                              style={{
+                                flex: "0.7",
+                                minWidth: "140px",
+                                padding: "0.4rem 0.5rem",
+                                fontSize: "0.875rem",
+                                border: "1px solid #ccc",
+                                borderRadius: "4px",
+                              }}
+                            />
                             <button
                               type="button"
                               onClick={() => removeValuePoint(index, true)}
@@ -1232,6 +1260,11 @@ function AppContent() {
                         )}
                         <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.8rem", color: "#888" }}>
                           {product.value_points.length} value point{product.value_points.length !== 1 ? "s" : ""}
+                          {product.value_points.some((vp) => vp.link) && (
+                            <span style={{ marginLeft: "0.5rem" }}>
+                              ({product.value_points.filter((vp) => vp.link).length} with link{product.value_points.filter((vp) => vp.link).length !== 1 ? "s" : ""})
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div style={{ display: "flex", gap: "0.25rem" }}>

@@ -29,7 +29,7 @@ function getOpenAIClient(): OpenAI {
 export interface ProductValuePointInput {
   productTitle: string;
   productDescription?: string;
-  valuePoints: { listen_for: string; insight_text: string }[];
+  valuePoints: { listen_for: string; insight_text: string; link?: string }[];
 }
 
 export interface CoachingInput {
@@ -82,6 +82,9 @@ export async function generateCoachingFeedback(
       }
       for (const vp of product.valuePoints) {
         productCatalogue += `- CONDITION: ${vp.listen_for}\n  INSIGHT: ${vp.insight_text}\n`;
+        if (vp.link) {
+          productCatalogue += `  LINK: ${vp.link}\n`;
+        }
       }
       productCatalogue += "\n";
     }
@@ -102,8 +105,11 @@ For each value point:
   1. Check whether the CONDITION is true based on the call transcript and/or the prospect's business context.
   2. If the CONDITION is true, include a coaching bullet point under that product's title in the email. Use the INSIGHT as the basis for the bullet, adapted to the specific prospect and what was discussed on the call.
   3. If the CONDITION is NOT true for a value point, do NOT include it.
+  4. If a triggered value point has a LINK, include "Learn More: <url>" immediately after the coaching bullet so the reader can access the resource.
 
 Only include a product heading in the email if at least one of its value points triggered. If none of a product's value points triggered, omit that product entirely.
+
+IMPORTANT: Include a MAXIMUM of 3 products in the email. If more than 3 products have triggered value points, select the 3 most relevant to the call and prospect context and omit the rest. If 3 or fewer triggered, include all that triggered.
 
 Keep the tone professional, concise, and actionable. Do not add sections beyond the prospect overview and the triggered product sections.
 ${productCatalogue}`;
