@@ -54,7 +54,6 @@ export interface ValuePoint {
 
 export interface Product {
   id: string;
-  strategy_id: string;
   title: string;
   description: string | null;
   created_at: string;
@@ -174,10 +173,10 @@ export const deleteStrategy = async (strategyId: string): Promise<void> => {
   }
 };
 
-// ============ Strategy-scoped Products API ============
+// ============ Global Products API ============
 
-export const getProductsByStrategy = async (strategyId: string): Promise<Product[]> => {
-  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/products`, {
+export const getAllProducts = async (): Promise<Product[]> => {
+  const response = await authFetch(`${API_BASE_URL}/products`, {
     method: "GET",
   });
 
@@ -192,14 +191,13 @@ export const getProductsByStrategy = async (strategyId: string): Promise<Product
 export interface CreateProductInput {
   title: string;
   description?: string;
-  value_points?: { listen_for: string; insight_text: string }[];
+  value_points?: { listen_for: string; insight_text: string; link?: string }[];
 }
 
 export const createProduct = async (
-  strategyId: string,
   input: CreateProductInput
 ): Promise<Product> => {
-  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/products`, {
+  const response = await authFetch(`${API_BASE_URL}/products`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -225,16 +223,15 @@ export const createProduct = async (
 export interface UpdateProductInput {
   title?: string;
   description?: string | null;
-  value_points?: { listen_for: string; insight_text: string }[];
+  value_points?: { listen_for: string; insight_text: string; link?: string }[];
 }
 
 export const updateProduct = async (
-  strategyId: string,
   productId: string,
   input: UpdateProductInput
 ): Promise<Product> => {
   const response = await authFetch(
-    `${API_BASE_URL}/strategies/${strategyId}/products/${productId}`,
+    `${API_BASE_URL}/products/${productId}`,
     {
       method: "PATCH",
       headers: {
@@ -253,9 +250,51 @@ export const updateProduct = async (
 };
 
 export const deleteProduct = async (
-  strategyId: string,
   productId: string
 ): Promise<void> => {
+  const response = await authFetch(
+    `${API_BASE_URL}/products/${productId}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to delete product: ${response.statusText}`);
+  }
+};
+
+// ============ Strategy-Product Associations API ============
+
+export const getProductsByStrategy = async (strategyId: string): Promise<Product[]> => {
+  const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/products`, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to fetch strategy products: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const addProductToStrategy = async (strategyId: string, productId: string): Promise<void> => {
+  const response = await authFetch(
+    `${API_BASE_URL}/strategies/${strategyId}/products/${productId}`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Failed to add product to strategy: ${response.statusText}`);
+  }
+};
+
+export const removeProductFromStrategy = async (strategyId: string, productId: string): Promise<void> => {
   const response = await authFetch(
     `${API_BASE_URL}/strategies/${strategyId}/products/${productId}`,
     {
@@ -265,7 +304,7 @@ export const deleteProduct = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `Failed to delete product: ${response.statusText}`);
+    throw new Error(error.error || `Failed to remove product from strategy: ${response.statusText}`);
   }
 };
 

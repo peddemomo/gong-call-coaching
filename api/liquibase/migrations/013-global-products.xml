@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Step 1: Create the strategy_products junction table -->
+    <changeSet id="013-create-strategy-products-table" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="strategy_products"/></not>
+        </preConditions>
+        <createTable tableName="strategy_products">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="strategy_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="product_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Step 2: Unique constraint on (strategy_id, product_id) -->
+    <changeSet id="013-unique-strategy-product" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not><indexExists indexName="uq_strategy_products"/></not>
+        </preConditions>
+        <addUniqueConstraint
+            tableName="strategy_products"
+            columnNames="strategy_id, product_id"
+            constraintName="uq_strategy_products"/>
+    </changeSet>
+
+    <!-- Step 3: FK strategy_products.strategy_id -> strategies.id -->
+    <changeSet id="013-fk-sp-strategy" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not><foreignKeyConstraintExists foreignKeyName="fk_sp_strategy"/></not>
+        </preConditions>
+        <addForeignKeyConstraint
+            baseTableName="strategy_products"
+            baseColumnNames="strategy_id"
+            referencedTableName="strategies"
+            referencedColumnNames="id"
+            constraintName="fk_sp_strategy"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- Step 4: FK strategy_products.product_id -> products.id -->
+    <changeSet id="013-fk-sp-product" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not><foreignKeyConstraintExists foreignKeyName="fk_sp_product"/></not>
+        </preConditions>
+        <addForeignKeyConstraint
+            baseTableName="strategy_products"
+            baseColumnNames="product_id"
+            referencedTableName="products"
+            referencedColumnNames="id"
+            constraintName="fk_sp_product"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- Step 5: Migrate existing data from products.strategy_id into junction table -->
+    <changeSet id="013-migrate-strategy-product-data" author="system">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="products" columnName="strategy_id"/>
+        </preConditions>
+        <sql>
+            INSERT INTO strategy_products (strategy_id, product_id)
+            SELECT strategy_id, id FROM products
+            WHERE strategy_id IS NOT NULL
+            ON CONFLICT DO NOTHING;
+        </sql>
+    </changeSet>
+
+    <!-- Step 6: Drop the FK constraint on products.strategy_id -->
+    <changeSet id="013-drop-fk-products-strategy" author="system">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fk_products_strategy"/>
+        </preConditions>
+        <dropForeignKeyConstraint
+            baseTableName="products"
+            constraintName="fk_products_strategy"/>
+    </changeSet>
+
+    <!-- Step 7: Drop the strategy_id column from products -->
+    <changeSet id="013-drop-products-strategy-id" author="system">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="products" columnName="strategy_id"/>
+        </preConditions>
+        <dropColumn tableName="products" columnName="strategy_id"/>
+    </changeSet>
+
+</databaseChangeLog>

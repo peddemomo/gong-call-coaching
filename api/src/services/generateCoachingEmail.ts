@@ -99,11 +99,12 @@ export async function generateCoachingEmail(
     }
   }
 
-  // Fetch products and value points for this strategy
+  // Fetch products and value points for this strategy via junction table
   const productsResult = await pool.query(
     `SELECT p.id, p.title, p.description
      FROM public.products p
-     WHERE p.strategy_id = $1
+     JOIN public.strategy_products sp ON sp.product_id = p.id
+     WHERE sp.strategy_id = $1
      ORDER BY p.created_at ASC`,
     [strategy_id]
   );

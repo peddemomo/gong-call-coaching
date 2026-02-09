@@ -18,6 +18,7 @@
     <include file="migrations/010-prospect-domain-sent.xml"/>
     <include file="migrations/011-products-value-points.xml"/>
     <include file="migrations/012-value-point-link.xml"/>
+    <include file="migrations/013-global-products.xml"/>
 
 </databaseChangeLog>
 

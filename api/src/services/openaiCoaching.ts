@@ -95,23 +95,23 @@ export async function generateCoachingFeedback(
 
 Structure your email output EXACTLY as follows:
 
-## 1. Prospect Overview
+## 1. Overview
 Begin with a 2-3 sentence description of the prospect's business. Use the "Prospect Company Context" provided in the call context to write this. Tailor it to what is relevant for the sales conversation.
 
-## 2. Product Coaching
+## 2. Product Suggestions
 Below is a list of products, each with value points. Each value point has a CONDITION and an INSIGHT.
 
 For each value point:
   1. Check whether the CONDITION is true based on the call transcript and/or the prospect's business context.
-  2. If the CONDITION is true, include a coaching bullet point under that product's title in the email. Use the INSIGHT as the basis for the bullet, adapted to the specific prospect and what was discussed on the call.
+  2. If the CONDITION is true, include a bullet point under that product's title in the email. Use the INSIGHT as the basis, adapted to the specific prospect and what was discussed on the call.
   3. If the CONDITION is NOT true for a value point, do NOT include it.
-  4. If a triggered value point has a LINK, include "Learn More: <url>" immediately after the coaching bullet so the reader can access the resource.
+  4. If a triggered value point has a LINK, include "Learn More: <url>" immediately after the bullet so the reader can access the resource.
 
-A single product can have multiple triggered value points -- include a separate bullet for EACH triggered value point under that product's heading. Only include a product heading in the email if at least one of its value points triggered. If none of a product's value points triggered, omit that product entirely.
+A single product can have multiple triggered value points -- include a separate bullet for EACH one under that product's heading. Only include a product heading in the email if at least one of its value points triggered. If none triggered, omit that product entirely.
 
 IMPORTANT: Include a MAXIMUM of 3 products in the email. If more than 3 products have triggered value points, select the 3 most relevant to the call and prospect context and omit the rest. If 3 or fewer triggered, include all that triggered.
 
-Keep the tone professional, concise, and actionable. Do not add sections beyond the prospect overview and the triggered product sections.
+Keep the tone professional, concise, and actionable. Do not add sections beyond the overview and the triggered product sections.
 ${productCatalogue}`;
 
   // User message: call context + transcript

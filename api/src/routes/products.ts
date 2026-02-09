@@ -1,32 +1,17 @@
 /**
- * Products router - mounted at /strategies/:strategyId/products
- * So GET/POST /strategies/:strategyId/products and PATCH/DELETE /strategies/:strategyId/products/:productId
+ * Strategy-Product association router - mounted at /strategies/:strategyId/products
+ * Manages which products are associated with a strategy via the strategy_products junction table.
+ *
+ * GET  /                  - list products associated with this strategy
+ * POST /:productId        - associate an existing product with this strategy
+ * DELETE /:productId      - disassociate a product from this strategy (does NOT delete the product)
  */
 import { Router, Request, Response } from "express";
-import { z } from "zod";
 import pool from "../db/pool";
 
 const router = Router({ mergeParams: true });
 
-const valuePointSchema = z.object({
-  listen_for: z.string(),
-  insight_text: z.string(),
-  link: z.string().optional(),
-});
-
-const createProductSchema = z.object({
-  title: z.string().min(1, "Product title is required"),
-  description: z.string().optional(),
-  value_points: z.array(valuePointSchema).optional().default([]),
-});
-
-const updateProductSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  value_points: z.array(valuePointSchema).optional(),
-});
-
-// GET / - List products for the strategy (strategyId from req.params)
+// GET / - List products associated with this strategy (with value points)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const strategyId = req.params.strategyId;
@@ -45,10 +30,11 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     const productsResult = await pool.query(
-      `SELECT id, strategy_id, title, description, created_at
-       FROM public.products
-       WHERE strategy_id = $1
-       ORDER BY created_at ASC`,
+      `SELECT p.id, p.title, p.description, p.created_at
+       FROM public.products p
+       JOIN public.strategy_products sp ON sp.product_id = p.id
+       WHERE sp.strategy_id = $1
+       ORDER BY sp.created_at ASC`,
       [strategyId]
     );
 
@@ -73,25 +59,16 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// POST / - Create product (strategyId from req.params)
-router.post("/", async (req: Request, res: Response) => {
+// POST /:productId - Associate an existing product with this strategy
+router.post("/:productId", async (req: Request, res: Response) => {
   try {
-    const strategyId = req.params.strategyId;
-    if (!strategyId) {
-      res.status(400).json({ error: "Strategy ID is required" });
+    const { strategyId, productId } = req.params;
+    if (!strategyId || !productId) {
+      res.status(400).json({ error: "Strategy ID and Product ID are required" });
       return;
     }
 
-    const parsed = createProductSchema.safeParse(req.body);
-
-    if (!parsed.success) {
-      res.status(400).json({
-        error: "Validation failed",
-        details: parsed.error.errors,
-      });
-      return;
-    }
-
+    // Verify strategy exists
     const strategyCheck = await pool.query(
       "SELECT id FROM public.strategies WHERE id = $1",
       [strategyId]
@@ -101,179 +78,62 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    const { title, description, value_points } = parsed.data;
-
-    const validValuePoints = (value_points ?? []).filter(
-      (vp: { listen_for: string; insight_text: string; link?: string }) =>
-        vp.listen_for?.trim().length > 0 && vp.insight_text?.trim().length > 0
-    );
-
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      const productResult = await client.query(
-        `INSERT INTO public.products (strategy_id, title, description, created_at)
-         VALUES ($1, $2, $3, NOW())
-         RETURNING *`,
-        [strategyId, title, description || null]
-      );
-      const product = productResult.rows[0];
-
-      for (let i = 0; i < validValuePoints.length; i++) {
-        const vp = validValuePoints[i];
-        await client.query(
-          `INSERT INTO public.product_value_points (product_id, listen_for, insight_text, link, sort_order, created_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())`,
-          [product.id, vp.listen_for, vp.insight_text, vp.link || null, i]
-        );
-      }
-
-      await client.query("COMMIT");
-
-      const vpResult = await client.query(
-        `SELECT id, product_id, listen_for, insight_text, link, sort_order, created_at
-         FROM public.product_value_points
-         WHERE product_id = $1
-         ORDER BY sort_order ASC, created_at ASC`,
-        [product.id]
-      );
-      res.status(201).json({ ...product, value_points: vpResult.rows });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error("Error creating product:", error);
-    res.status(500).json({ error: "Failed to create product" });
-  }
-});
-
-// PATCH /:productId - Update product
-router.patch("/:productId", async (req: Request, res: Response) => {
-  try {
-    const strategyId = req.params.strategyId;
-    const productId = req.params.productId;
-    if (!strategyId || !productId) {
-      res.status(400).json({ error: "Strategy ID and Product ID are required" });
-      return;
-    }
-
-    const parsed = updateProductSchema.safeParse(req.body);
-
-    if (!parsed.success) {
-      res.status(400).json({
-        error: "Validation failed",
-        details: parsed.error.errors,
-      });
-      return;
-    }
-
+    // Verify product exists
     const productCheck = await pool.query(
-      "SELECT id, strategy_id, title, description FROM public.products WHERE id = $1",
+      "SELECT id FROM public.products WHERE id = $1",
       [productId]
     );
     if (productCheck.rows.length === 0) {
       res.status(404).json({ error: "Product not found" });
       return;
     }
-    const product = productCheck.rows[0];
-    if (product.strategy_id !== strategyId) {
-      res.status(404).json({ error: "Product not found in this strategy" });
+
+    // Check if already associated
+    const existingCheck = await pool.query(
+      "SELECT id FROM public.strategy_products WHERE strategy_id = $1 AND product_id = $2",
+      [strategyId, productId]
+    );
+    if (existingCheck.rows.length > 0) {
+      res.status(409).json({ error: "Product is already associated with this strategy" });
       return;
     }
 
-    const { title, description, value_points } = parsed.data;
+    await pool.query(
+      `INSERT INTO public.strategy_products (strategy_id, product_id, created_at)
+       VALUES ($1, $2, NOW())`,
+      [strategyId, productId]
+    );
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      if (title !== undefined) {
-        await client.query(
-          "UPDATE public.products SET title = $1 WHERE id = $2",
-          [title, productId]
-        );
-      }
-      if (description !== undefined) {
-        await client.query(
-          "UPDATE public.products SET description = $1 WHERE id = $2",
-          [description, productId]
-        );
-      }
-
-      if (value_points !== undefined) {
-        const validValuePoints = value_points.filter(
-          (vp: { listen_for: string; insight_text: string; link?: string }) =>
-            vp.listen_for?.trim().length > 0 && vp.insight_text?.trim().length > 0
-        );
-        await client.query("DELETE FROM public.product_value_points WHERE product_id = $1", [productId]);
-        for (let i = 0; i < validValuePoints.length; i++) {
-          const vp = validValuePoints[i];
-          await client.query(
-            `INSERT INTO public.product_value_points (product_id, listen_for, insight_text, link, sort_order, created_at)
-             VALUES ($1, $2, $3, $4, $5, NOW())`,
-            [productId, vp.listen_for, vp.insight_text, vp.link || null, i]
-          );
-        }
-      }
-
-      await client.query("COMMIT");
-
-      const updated = await client.query(
-        "SELECT * FROM public.products WHERE id = $1",
-        [productId]
-      );
-      const vpResult = await client.query(
-        `SELECT id, product_id, listen_for, insight_text, link, sort_order, created_at
-         FROM public.product_value_points
-         WHERE product_id = $1
-         ORDER BY sort_order ASC, created_at ASC`,
-        [productId]
-      );
-      res.json({ ...updated.rows[0], value_points: vpResult.rows });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
+    res.status(201).json({ message: "Product associated with strategy" });
   } catch (error) {
-    console.error("Error updating product:", error);
-    res.status(500).json({ error: "Failed to update product" });
+    console.error("Error associating product with strategy:", error);
+    res.status(500).json({ error: "Failed to associate product" });
   }
 });
 
-// DELETE /:productId - Delete product
+// DELETE /:productId - Disassociate a product from this strategy
 router.delete("/:productId", async (req: Request, res: Response) => {
   try {
-    const strategyId = req.params.strategyId;
-    const productId = req.params.productId;
+    const { strategyId, productId } = req.params;
     if (!strategyId || !productId) {
       res.status(400).json({ error: "Strategy ID and Product ID are required" });
       return;
     }
 
-    const productCheck = await pool.query(
-      "SELECT id, strategy_id FROM public.products WHERE id = $1",
-      [productId]
+    const result = await pool.query(
+      "DELETE FROM public.strategy_products WHERE strategy_id = $1 AND product_id = $2",
+      [strategyId, productId]
     );
-    if (productCheck.rows.length === 0) {
-      res.status(404).json({ error: "Product not found" });
-      return;
-    }
-    if (productCheck.rows[0].strategy_id !== strategyId) {
-      res.status(404).json({ error: "Product not found in this strategy" });
+
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: "Association not found" });
       return;
     }
 
-    await pool.query("DELETE FROM public.products WHERE id = $1", [productId]);
     res.status(204).send();
   } catch (error) {
-    console.error("Error deleting product:", error);
-    res.status(500).json({ error: "Failed to delete product" });
+    console.error("Error disassociating product from strategy:", error);
+    res.status(500).json({ error: "Failed to disassociate product" });
   }
 });
 
