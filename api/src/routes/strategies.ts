@@ -458,7 +458,7 @@ router.get("/:strategyId/email-logs", async (req: Request, res: Response) => {
     const { strategyId } = req.params;
 
     const result = await pool.query(
-      `SELECT id, ae_email, gong_call_id, status, subject, body, error_message, created_at, strategy_id, context, decision, skip_reason, is_test, test_run_id
+      `SELECT id, ae_email, gong_call_id, status, subject, body, error_message, created_at, strategy_id, context, decision, skip_reason, is_test, test_run_id, value_point_evaluations
        FROM public.email_logs
        WHERE strategy_id = $1
        ORDER BY created_at DESC

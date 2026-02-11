@@ -51,15 +51,18 @@ export async function searchCompanyContext(domain: string): Promise<CompanyConte
   // Extract company name from domain (remove TLD)
   const companyName = domain.split(".")[0];
 
-  const systemPrompt = `You are a business research assistant. Provide concise, factual information about companies based on their website and public information. Focus on information relevant to B2B sales conversations.`;
+  const systemPrompt = `You are a business research assistant. Provide detailed, factual information about companies based on their website and public information. Your research will be used to match against sales enablement criteria, so be thorough about the company's products, capabilities, and the problems they solve.`;
 
-  const userPrompt = `Research the company at ${domain} (${companyName}). Provide a brief summary including:
-1. What the company does (1-2 sentences)
-2. Their main products or services
-3. Their target customers/industry
-4. Any notable information useful for a sales conversation
+  const userPrompt = `Research the company at ${domain} (${companyName}). Provide a detailed summary covering:
 
-Keep the response concise (under 200 words). If you cannot find information about this company, say so clearly.`;
+1. **Company overview**: What the company does and their mission (2-3 sentences)
+2. **Products and services**: Describe each major product or service they offer. What does it do? What specific capabilities or features does it have?
+3. **Problems they solve**: What pain points or challenges do their products address? What outcomes or results do they claim to deliver for their customers?
+4. **Target customers and industry**: Who are their buyers? What verticals or segments do they serve?
+5. **Technology and platform**: Any notable technology, integrations, or platform details mentioned on their site
+6. **Recent news and initiatives**: Any recent product launches, partnerships, funding, strategic shifts, or public announcements
+
+Be specific and detailed — include product names, feature descriptions, and claimed outcomes when available. Do not summarize generically; the more specific detail you include about what their products do and what results they deliver, the better. If you cannot find information about this company, say so clearly.`;
 
   const messages: PerplexityMessage[] = [
     { role: "system", content: systemPrompt },
@@ -77,7 +80,7 @@ Keep the response concise (under 200 words). If you cannot find information abou
     body: JSON.stringify({
       model: "sonar",
       messages,
-      max_tokens: 500,
+      max_tokens: 1500,
       temperature: 0.1,
     }),
   });

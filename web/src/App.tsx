@@ -1800,6 +1800,7 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
   const [copiedField, setCopiedField] = useState<"subject" | "body" | "decision" | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [showDecision, setShowDecision] = useState(false);
+  const [showEvaluations, setShowEvaluations] = useState(false);
 
   const handleCopy = async (text: string, field: "subject" | "body" | "decision") => {
     try {
@@ -1982,6 +1983,103 @@ function EmailLogModal({ log, onClose }: { log: EmailLog; onClose: () => void })
             {displayValue(log.body)}
           </pre>
         </div>
+
+        {/* Value Point Evaluations (collapsible) */}
+        {log.value_point_evaluations && log.value_point_evaluations.length > 0 && (
+          <div style={{ marginBottom: "1rem" }}>
+            <button
+              onClick={() => setShowEvaluations(!showEvaluations)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 0",
+                fontSize: "0.875rem",
+                color: "#0066cc",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 500,
+              }}
+            >
+              <span style={{ transform: showEvaluations ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                ▶
+              </span>
+              Value Points ({log.value_point_evaluations.filter((e) => e.triggered).length} of {log.value_point_evaluations.length} triggered)
+            </button>
+            {showEvaluations && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                }}
+              >
+                {(() => {
+                  // Group evaluations by product
+                  const byProduct = new Map<string, typeof log.value_point_evaluations>();
+                  for (const ev of log.value_point_evaluations!) {
+                    const existing = byProduct.get(ev.productTitle) || [];
+                    existing.push(ev);
+                    byProduct.set(ev.productTitle, existing);
+                  }
+                  return Array.from(byProduct.entries()).map(([productTitle, evals]) => (
+                    <div key={productTitle} style={{ marginBottom: "0.75rem" }}>
+                      <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "#333" }}>
+                        {productTitle}
+                      </div>
+                      {evals.map((ev, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            marginBottom: "0.5rem",
+                            borderLeft: `3px solid ${ev.triggered ? "#1e7e34" : "#ccc"}`,
+                            backgroundColor: ev.triggered ? "#f0faf0" : "#fff",
+                            borderRadius: "0 4px 4px 0",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "0.15rem 0.4rem",
+                                borderRadius: "4px",
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                backgroundColor: ev.triggered ? "#e6f4ea" : "#f0f0f0",
+                                color: ev.triggered ? "#1e7e34" : "#666",
+                              }}
+                            >
+                              {ev.triggered ? "TRIGGERED" : "NOT TRIGGERED"}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "#555", marginBottom: "0.25rem" }}>
+                            <strong>Condition:</strong> {ev.listen_for}
+                          </div>
+                          {ev.triggered && ev.evidence && (
+                            <div style={{ fontSize: "0.8rem", color: "#1a5c2e", marginBottom: "0.25rem", fontStyle: "italic" }}>
+                              <strong style={{ fontStyle: "normal" }}>Evidence:</strong> &ldquo;{ev.evidence}&rdquo;
+                            </div>
+                          )}
+                          <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                            <strong>Reasoning:</strong> {ev.reasoning}
+                          </div>
+                          {ev.triggered && (
+                            <div style={{ fontSize: "0.8rem", color: "#333", marginTop: "0.25rem" }}>
+                              <strong>Insight:</strong> {ev.insight_text}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Classifier Decision (collapsible) */}
         {log.decision && (

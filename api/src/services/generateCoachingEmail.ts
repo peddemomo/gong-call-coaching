@@ -1,6 +1,6 @@
 import pool from "../db/pool";
 import { ClassifierDecision } from "./classifyCallEligibility";
-import { generateCoachingFeedback } from "./openaiCoaching";
+import { generateCoachingFeedback, evaluateValuePoints, ValuePointEvaluation } from "./openaiCoaching";
 import { sendCoachingEmail } from "./sendEmail";
 import { getCompanyContextFromEmails } from "./companyContext";
 
@@ -142,13 +142,28 @@ export async function generateCoachingEmail(
   
   let subject: string;
   let body: string;
+  let valuePointEvaluations: ValuePointEvaluation[] | null = null;
   
   if (!transcript) {
     // No transcript available - use placeholder
     subject = "Your Coaching Feedback";
     body = "[No transcript available for this call - coaching feedback could not be generated]";
   } else {
-    // Generate coaching feedback using OpenAI
+    // Step 1: Evaluate value points against the transcript
+    try {
+      if (productValuePoints.length > 0) {
+        valuePointEvaluations = await evaluateValuePoints(
+          transcript,
+          companyContextSummary,
+          productValuePoints,
+        );
+      }
+    } catch (error) {
+      console.error("[OpenAI] Error evaluating value points:", error);
+      // Continue without evaluations — will fall back to single-pass mode
+    }
+
+    // Step 2: Generate the email using pre-evaluated value points (or full catalogue as fallback)
     try {
       const coachingResult = await generateCoachingFeedback({
         transcript,
@@ -159,6 +174,7 @@ export async function generateCoachingEmail(
         external_speaker_names: context?.external_speaker_names,
         company_context: companyContextSummary,
         product_value_points: productValuePoints,
+        evaluations: valuePointEvaluations || undefined,
       });
       
       subject = coachingResult.subject;
@@ -183,8 +199,8 @@ export async function generateCoachingEmail(
   // Insert into email_logs with idempotency check (only for non-test runs)
   try {
     const result = await pool.query(
-      `INSERT INTO public.email_logs (ae_email, gong_call_id, status, subject, body, error_message, strategy_id, context, decision, skip_reason, is_test, created_at)
-       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, NULL, $9, NOW())
+      `INSERT INTO public.email_logs (ae_email, gong_call_id, status, subject, body, error_message, strategy_id, context, decision, skip_reason, is_test, value_point_evaluations, created_at)
+       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, NULL, $9, $10, NOW())
        RETURNING *`,
       [
         ae_email, 
@@ -196,6 +212,7 @@ export async function generateCoachingEmail(
         contextToStore ? JSON.stringify(contextToStore) : null,
         decision ? JSON.stringify(decision) : null,
         is_test,
+        valuePointEvaluations ? JSON.stringify(valuePointEvaluations) : null,
       ]
     );
 

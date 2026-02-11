@@ -82,6 +82,16 @@ export interface ClassifierDecision {
   is_prospect_call: boolean;
 }
 
+export interface ValuePointEvaluation {
+  productTitle: string;
+  listen_for: string;
+  insight_text: string;
+  link?: string;
+  triggered: boolean;
+  evidence: string;
+  reasoning: string;
+}
+
 export interface EmailLog {
   id: string;
   ae_email: string;
@@ -97,6 +107,7 @@ export interface EmailLog {
   is_test: boolean;
   test_run_id: string;
   created_at: string;
+  value_point_evaluations: ValuePointEvaluation[] | null;
 }
 
 export interface GenerateResponse {
