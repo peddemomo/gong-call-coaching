@@ -284,8 +284,10 @@ Write 1-2 sentences summarizing what the prospect cared about on this call. Refe
 
 ${productInstructions}
 
-Keep the entire email under 400 words. Be specific and substantive, but don't pad with filler. Do not add any sections beyond the call recap and the product sections.
-${productSection}`;
+Do not add any sections beyond the call recap and the product sections.
+${productSection}
+
+IMPORTANT: You MUST include every single value point listed above in the email. Do not skip any. Each value point must appear as a bullet under its product heading. If there are many value points, keep each bullet concise (2-3 sentences) to fit them all. Missing a value point is worse than being brief.`;
 
   // User message: call context + transcript
   let userContext = "";
@@ -297,7 +299,11 @@ ${transcript}
 
 Analyze this call and generate a concise product intel email following the structure described in your instructions.`;
 
-  console.log(`[OpenAI] Generating product intel email for call: ${call_title || "Unknown"}`);
+  const triggeredCount = evaluations ? evaluations.filter((e) => e.triggered).length : 0;
+  const totalProducts = evaluations 
+    ? new Set(evaluations.filter((e) => e.triggered).map((e) => e.productTitle)).size 
+    : (product_value_points?.length || 0);
+  console.log(`[OpenAI] Generating product intel email for call: ${call_title || "Unknown"} (${triggeredCount} triggered value points across ${totalProducts} products)`);
 
   const completion = await client.chat.completions.create({
     model: "gpt-4o",
