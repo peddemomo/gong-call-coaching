@@ -5,6 +5,7 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import pool from "../db/pool";
+import { generateProductFromDocs } from "../services/generateProductFromDocs";
 
 const router = Router();
 
@@ -53,6 +54,38 @@ router.get("/", async (_req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching products:", error);
     res.status(500).json({ error: "Failed to fetch products" });
+  }
+});
+
+// POST /generate-from-docs - Generate a product from documentation using AI
+const generateFromDocsSchema = z.object({
+  content: z
+    .string()
+    .min(1, "Documentation content is required")
+    .max(100000, "Documentation content is too long (max 100k characters)"),
+});
+
+router.post("/generate-from-docs", async (req: Request, res: Response) => {
+  try {
+    const parsed = generateFromDocsSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Validation failed",
+        details: parsed.error.errors,
+      });
+      return;
+    }
+
+    const { content } = parsed.data;
+
+    const generated = await generateProductFromDocs(content);
+    res.json(generated);
+  } catch (error) {
+    console.error("Error generating product from docs:", error);
+    const message =
+      error instanceof Error ? error.message : "Failed to generate product from documentation";
+    res.status(500).json({ error: message });
   }
 });
 

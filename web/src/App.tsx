@@ -23,6 +23,7 @@ import {
   EmailLog,
   runTestCall,
   TestCallResponse,
+  generateProductFromDocs,
 } from "./api/client";
 
 function AppContent() {
@@ -53,6 +54,12 @@ function AppContent() {
   const [editingProductDescription, setEditingProductDescription] = useState("");
   const [editingProductValuePoints, setEditingProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string }[]>([]);
   const [showAllProducts, setShowAllProducts] = useState(false);
+
+  // Generate from docs state
+  const [showDocUploadForm, setShowDocUploadForm] = useState(false);
+  const [docContent, setDocContent] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // Strategies query
   const {
@@ -404,6 +411,50 @@ function AppContent() {
       description: newProductDescription.trim() || undefined,
       value_points: valuePoints,
     });
+  };
+
+  const handleGenerateFromDocs = async () => {
+    if (!docContent.trim()) return;
+    setIsGenerating(true);
+    setGenerateError(null);
+    try {
+      const generated = await generateProductFromDocs(docContent.trim());
+      // Pre-fill the new product form with AI-generated data
+      setNewProductTitle(generated.title);
+      setNewProductDescription(generated.description || "");
+      setNewProductValuePoints(
+        generated.value_points.length > 0
+          ? generated.value_points.map((vp) => ({
+              listen_for: vp.listen_for,
+              insight_text: vp.insight_text,
+              link: vp.link || "",
+            }))
+          : [{ listen_for: "", insight_text: "", link: "" }]
+      );
+      // Close the doc upload form and open the product form for review
+      setShowDocUploadForm(false);
+      setDocContent("");
+      setShowNewProductForm(true);
+    } catch (err) {
+      setGenerateError(
+        err instanceof Error ? err.message : "Failed to generate product"
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDocFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === "string") {
+        setDocContent(text);
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleDeleteProduct = (productId: string) => {
@@ -773,22 +824,139 @@ function AppContent() {
           Products are global and can be associated with multiple strategies. Create and manage products here, then link them to strategies below.
         </p>
 
-        {!showNewProductForm && (
-          <button
-            onClick={() => setShowNewProductForm(true)}
+        {!showNewProductForm && !showDocUploadForm && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              onClick={() => setShowNewProductForm(true)}
+              style={{
+                padding: "0.375rem 0.75rem",
+                fontSize: "0.875rem",
+                backgroundColor: "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              + New Product
+            </button>
+            <button
+              onClick={() => { setShowDocUploadForm(true); setGenerateError(null); }}
+              style={{
+                padding: "0.375rem 0.75rem",
+                fontSize: "0.875rem",
+                backgroundColor: "#6f42c1",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Generate from Docs
+            </button>
+          </div>
+        )}
+
+        {showDocUploadForm && (
+          <div
             style={{
-              padding: "0.375rem 0.75rem",
-              fontSize: "0.875rem",
-              backgroundColor: "#28a745",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              marginBottom: "1rem",
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "#f5f0ff",
+              borderRadius: "8px",
+              border: "1px solid #d8c9f0",
             }}
           >
-            + New Product
-          </button>
+            <div style={{ marginBottom: "0.75rem" }}>
+              <strong style={{ fontSize: "0.95rem" }}>Generate Product from Documentation</strong>
+              <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0 0" }}>
+                Upload a .txt or .md file, or paste your documentation below. AI will generate a product with value points for you to review.
+              </p>
+            </div>
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label
+                style={{
+                  display: "inline-block",
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.8rem",
+                  backgroundColor: "#e8e0f3",
+                  color: "#5a3d8a",
+                  border: "1px solid #c9b8e0",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Choose file (.txt, .md)
+                <input
+                  type="file"
+                  accept=".txt,.md,.text,.markdown"
+                  onChange={handleDocFileUpload}
+                  style={{ display: "none" }}
+                />
+              </label>
+            </div>
+            <textarea
+              placeholder="Paste your product/feature documentation here..."
+              value={docContent}
+              onChange={(e) => setDocContent(e.target.value)}
+              rows={10}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                fontSize: "0.875rem",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                resize: "vertical",
+                boxSizing: "border-box",
+                fontFamily: "monospace",
+              }}
+            />
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={handleGenerateFromDocs}
+                disabled={isGenerating || !docContent.trim()}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.875rem",
+                  backgroundColor: "#6f42c1",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: isGenerating || !docContent.trim() ? "not-allowed" : "pointer",
+                  opacity: isGenerating || !docContent.trim() ? 0.6 : 1,
+                }}
+              >
+                {isGenerating ? "Generating..." : "Generate Product"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDocUploadForm(false);
+                  setDocContent("");
+                  setGenerateError(null);
+                }}
+                disabled={isGenerating}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.875rem",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: isGenerating ? "not-allowed" : "pointer",
+                  opacity: isGenerating ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+            {generateError && (
+              <p style={{ color: "#cc0000", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                {generateError}
+              </p>
+            )}
+          </div>
         )}
 
         {showNewProductForm && (

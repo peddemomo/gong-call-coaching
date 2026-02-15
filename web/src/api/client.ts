@@ -199,6 +199,33 @@ export const getAllProducts = async (): Promise<Product[]> => {
   return response.json();
 };
 
+export interface GenerateProductResult {
+  title: string;
+  description: string;
+  value_points: { listen_for: string; insight_text: string; link?: string }[];
+}
+
+export const generateProductFromDocs = async (
+  content: string
+): Promise<GenerateProductResult> => {
+  const response = await authFetch(`${API_BASE_URL}/products/generate-from-docs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.error || `Failed to generate product from docs: ${response.statusText}`
+    );
+  }
+
+  return response.json();
+};
+
 export interface CreateProductInput {
   title: string;
   description?: string;
