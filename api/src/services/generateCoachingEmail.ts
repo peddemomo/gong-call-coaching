@@ -109,16 +109,16 @@ export async function generateCoachingEmail(
     [strategy_id]
   );
   const productRows = productsResult.rows as { id: string; title: string; description: string | null }[];
-  const productValuePoints: { productTitle: string; productDescription?: string; valuePoints: { listen_for: string; insight_text: string; link?: string }[] }[] = [];
+  const productValuePoints: { productTitle: string; productDescription?: string; valuePoints: { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }[] }[] = [];
   for (const p of productRows) {
     const vpResult = await pool.query(
-      `SELECT listen_for, insight_text, link FROM public.product_value_points WHERE product_id = $1 ORDER BY sort_order ASC, created_at ASC`,
+      `SELECT listen_for, insight_text, link, always_surface FROM public.product_value_points WHERE product_id = $1 ORDER BY sort_order ASC, created_at ASC`,
       [p.id]
     );
     productValuePoints.push({
       productTitle: p.title,
       productDescription: p.description ?? undefined,
-      valuePoints: vpResult.rows as { listen_for: string; insight_text: string; link?: string }[],
+      valuePoints: vpResult.rows as { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }[],
     });
   }
   

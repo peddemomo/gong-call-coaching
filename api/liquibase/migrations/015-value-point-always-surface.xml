@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Add always_surface boolean to product_value_points -->
+    <changeSet id="015-add-always-surface-to-value-points" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not><columnExists tableName="product_value_points" columnName="always_surface"/></not>
+        </preConditions>
+        <addColumn tableName="product_value_points">
+            <column name="always_surface" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

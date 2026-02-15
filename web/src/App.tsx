@@ -48,11 +48,11 @@ function AppContent() {
   const [showNewProductForm, setShowNewProductForm] = useState(false);
   const [newProductTitle, setNewProductTitle] = useState("");
   const [newProductDescription, setNewProductDescription] = useState("");
-  const [newProductValuePoints, setNewProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string }[]>([{ listen_for: "", insight_text: "", link: "" }]);
+  const [newProductValuePoints, setNewProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string; always_surface: boolean }[]>([{ listen_for: "", insight_text: "", link: "", always_surface: false }]);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editingProductTitle, setEditingProductTitle] = useState("");
   const [editingProductDescription, setEditingProductDescription] = useState("");
-  const [editingProductValuePoints, setEditingProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string }[]>([]);
+  const [editingProductValuePoints, setEditingProductValuePoints] = useState<{ listen_for: string; insight_text: string; link: string; always_surface: boolean }[]>([]);
   const [showAllProducts, setShowAllProducts] = useState(false);
 
   // Generate from docs state
@@ -238,7 +238,7 @@ function AppContent() {
       setShowNewProductForm(false);
       setNewProductTitle("");
       setNewProductDescription("");
-      setNewProductValuePoints([{ listen_for: "", insight_text: "", link: "" }]);
+      setNewProductValuePoints([{ listen_for: "", insight_text: "", link: "", always_surface: false }]);
     },
   });
 
@@ -384,8 +384,8 @@ function AppContent() {
     setEditingProductDescription(product.description || "");
     setEditingProductValuePoints(
       product.value_points.length > 0
-        ? product.value_points.map((vp) => ({ listen_for: vp.listen_for, insight_text: vp.insight_text, link: vp.link || "" }))
-        : [{ listen_for: "", insight_text: "", link: "" }]
+        ? product.value_points.map((vp) => ({ listen_for: vp.listen_for, insight_text: vp.insight_text, link: vp.link || "", always_surface: vp.always_surface || false }))
+        : [{ listen_for: "", insight_text: "", link: "", always_surface: false }]
     );
   };
 
@@ -428,8 +428,9 @@ function AppContent() {
               listen_for: vp.listen_for,
               insight_text: vp.insight_text,
               link: vp.link || "",
+              always_surface: false,
             }))
-          : [{ listen_for: "", insight_text: "", link: "" }]
+          : [{ listen_for: "", insight_text: "", link: "", always_surface: false }]
       );
       // Close the doc upload form and open the product form for review
       setShowDocUploadForm(false);
@@ -474,9 +475,9 @@ function AppContent() {
 
   const addNewValuePoint = (isEditing: boolean) => {
     if (isEditing) {
-      setEditingProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "", link: "" }]);
+      setEditingProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "", link: "", always_surface: false }]);
     } else {
-      setNewProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "", link: "" }]);
+      setNewProductValuePoints((prev) => [...prev, { listen_for: "", insight_text: "", link: "", always_surface: false }]);
     }
   };
 
@@ -485,6 +486,18 @@ function AppContent() {
       setEditingProductValuePoints((prev) => prev.filter((_, i) => i !== index));
     } else {
       setNewProductValuePoints((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const toggleAlwaysSurface = (index: number, isEditing: boolean) => {
+    if (isEditing) {
+      setEditingProductValuePoints((prev) =>
+        prev.map((vp, i) => (i === index ? { ...vp, always_surface: !vp.always_surface } : vp))
+      );
+    } else {
+      setNewProductValuePoints((prev) =>
+        prev.map((vp, i) => (i === index ? { ...vp, always_surface: !vp.always_surface } : vp))
+      );
     }
   };
 
@@ -1039,9 +1052,9 @@ function AppContent() {
                       Remove
                     </button>
                   </div>
-                  <div style={{ marginBottom: "0.5rem" }}>
+                  <div style={{ marginBottom: "0.5rem", opacity: vp.always_surface ? 0.5 : 1 }}>
                     <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#666", marginBottom: "0.25rem" }}>
-                      Condition to listen for
+                      Condition to listen for {vp.always_surface && <span style={{ fontStyle: "italic", color: "#999" }}>(skipped — always surfaced)</span>}
                     </label>
                     <textarea
                       placeholder="e.g. The prospect mentions patient leakage to competing hospitals"
@@ -1083,7 +1096,7 @@ function AppContent() {
                       }}
                     />
                   </div>
-                  <div>
+                  <div style={{ marginBottom: "0.5rem" }}>
                     <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#666", marginBottom: "0.25rem" }}>
                       Resource link (optional)
                     </label>
@@ -1101,6 +1114,20 @@ function AppContent() {
                         boxSizing: "border-box",
                       }}
                     />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "#555", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={vp.always_surface}
+                        onChange={() => toggleAlwaysSurface(index, false)}
+                        style={{ cursor: "pointer" }}
+                      />
+                      Always surface
+                    </label>
+                    <span style={{ fontSize: "0.7rem", color: "#999" }}>
+                      {vp.always_surface ? "This insight will always be included in emails" : "Only included when relevant to the call"}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -1144,7 +1171,7 @@ function AppContent() {
                   setShowNewProductForm(false);
                   setNewProductTitle("");
                   setNewProductDescription("");
-                  setNewProductValuePoints([{ listen_for: "", insight_text: "", link: "" }]);
+                  setNewProductValuePoints([{ listen_for: "", insight_text: "", link: "", always_surface: false }]);
                 }}
                 style={{
                   padding: "0.5rem 1rem",
@@ -1264,9 +1291,9 @@ function AppContent() {
                             Remove
                           </button>
                         </div>
-                        <div style={{ marginBottom: "0.5rem" }}>
+                        <div style={{ marginBottom: "0.5rem", opacity: vp.always_surface ? 0.5 : 1 }}>
                           <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#666", marginBottom: "0.25rem" }}>
-                            Condition to listen for
+                            Condition to listen for {vp.always_surface && <span style={{ fontStyle: "italic", color: "#999" }}>(skipped — always surfaced)</span>}
                           </label>
                           <textarea
                             placeholder="e.g. The prospect mentions patient leakage to competing hospitals"
@@ -1308,7 +1335,7 @@ function AppContent() {
                             }}
                           />
                         </div>
-                        <div>
+                        <div style={{ marginBottom: "0.5rem" }}>
                           <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#666", marginBottom: "0.25rem" }}>
                             Resource link (optional)
                           </label>
@@ -1326,6 +1353,20 @@ function AppContent() {
                               boxSizing: "border-box",
                             }}
                           />
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "#555", cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={vp.always_surface}
+                              onChange={() => toggleAlwaysSurface(index, true)}
+                              style={{ cursor: "pointer" }}
+                            />
+                            Always surface
+                          </label>
+                          <span style={{ fontSize: "0.7rem", color: "#999" }}>
+                            {vp.always_surface ? "This insight will always be included in emails" : "Only included when relevant to the call"}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -1404,6 +1445,11 @@ function AppContent() {
                     )}
                     <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.8rem", color: "#888" }}>
                       {product.value_points.length} value point{product.value_points.length !== 1 ? "s" : ""}
+                      {product.value_points.some((vp) => vp.always_surface) && (
+                        <span style={{ marginLeft: "0.5rem", color: "#6f42c1" }}>
+                          ({product.value_points.filter((vp) => vp.always_surface).length} always surfaced)
+                        </span>
+                      )}
                       {product.value_points.some((vp) => vp.link) && (
                         <span style={{ marginLeft: "0.5rem" }}>
                           ({product.value_points.filter((vp) => vp.link).length} with link{product.value_points.filter((vp) => vp.link).length !== 1 ? "s" : ""})

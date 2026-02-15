@@ -48,6 +48,7 @@ export interface ValuePoint {
   listen_for: string;
   insight_text: string;
   link?: string;
+  always_surface?: boolean;
   sort_order?: number;
   created_at?: string;
 }
@@ -229,7 +230,7 @@ export const generateProductFromDocs = async (
 export interface CreateProductInput {
   title: string;
   description?: string;
-  value_points?: { listen_for: string; insight_text: string; link?: string }[];
+  value_points?: { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }[];
 }
 
 export const createProduct = async (
@@ -261,7 +262,7 @@ export const createProduct = async (
 export interface UpdateProductInput {
   title?: string;
   description?: string | null;
-  value_points?: { listen_for: string; insight_text: string; link?: string }[];
+  value_points?: { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }[];
 }
 
 export const updateProduct = async (

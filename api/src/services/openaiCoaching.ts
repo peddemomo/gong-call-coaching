@@ -29,7 +29,7 @@ function getOpenAIClient(): OpenAI {
 export interface ProductValuePointInput {
   productTitle: string;
   productDescription?: string;
-  valuePoints: { listen_for: string; insight_text: string; link?: string }[];
+  valuePoints: { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }[];
 }
 
 export interface ValuePointEvaluation {
@@ -70,28 +70,51 @@ export async function evaluateValuePoints(
 ): Promise<ValuePointEvaluation[]> {
   const client = getOpenAIClient();
 
-  // Build a flat list of value points with product context for the prompt
-  const valuePointsList: { index: number; productTitle: string; listen_for: string; insight_text: string; link?: string }[] = [];
+  // Build a flat list of ALL value points, tracking which are always-surfaced
+  const allValuePoints: { originalIndex: number; productTitle: string; listen_for: string; insight_text: string; link?: string; always_surface: boolean }[] = [];
   for (const product of productValuePoints) {
     for (const vp of product.valuePoints) {
-      valuePointsList.push({
-        index: valuePointsList.length,
+      allValuePoints.push({
+        originalIndex: allValuePoints.length,
         productTitle: product.productTitle,
         listen_for: vp.listen_for,
         insight_text: vp.insight_text,
         link: vp.link,
+        always_surface: vp.always_surface || false,
       });
     }
   }
 
-  if (valuePointsList.length === 0) {
+  if (allValuePoints.length === 0) {
     return [];
   }
 
-  // Build the value points section for the prompt
+  // Separate always-surfaced from those needing AI evaluation
+  const alwaysSurfaced = allValuePoints.filter((vp) => vp.always_surface);
+  const needsEvaluation = allValuePoints.filter((vp) => !vp.always_surface);
+
+  // Create evaluations for always-surfaced value points (force triggered)
+  const alwaysSurfacedEvaluations: ValuePointEvaluation[] = alwaysSurfaced.map((vp) => ({
+    productTitle: vp.productTitle,
+    listen_for: vp.listen_for,
+    insight_text: vp.insight_text,
+    link: vp.link,
+    triggered: true,
+    evidence: "Always surfaced",
+    reasoning: "This insight is configured to always surface",
+  }));
+
+  // If there are no value points that need AI evaluation, return just the always-surfaced ones
+  if (needsEvaluation.length === 0) {
+    console.log(`[OpenAI] All ${alwaysSurfaced.length} value points are always-surfaced, skipping AI evaluation`);
+    return alwaysSurfacedEvaluations;
+  }
+
+  // Build the value points section for the AI prompt (only non-always-surfaced)
   let vpSection = "";
-  for (const vp of valuePointsList) {
-    vpSection += `[${vp.index}] Product: ${vp.productTitle}\n    CONDITION: ${vp.listen_for}\n\n`;
+  for (let i = 0; i < needsEvaluation.length; i++) {
+    const vp = needsEvaluation[i];
+    vpSection += `[${i}] Product: ${vp.productTitle}\n    CONDITION: ${vp.listen_for}\n\n`;
   }
 
   const systemMessage = `You are a precise analyst. Your job is to evaluate whether specific conditions are supported by evidence in a sales call transcript AND/OR the prospect's company context (research about the prospect's business).
@@ -113,7 +136,7 @@ Return a JSON object with a single key "evaluations" containing an array. Each e
 - "evidence": string
 - "reasoning": string
 
-The array must have exactly ${valuePointsList.length} elements, one per value point, in order.`;
+The array must have exactly ${needsEvaluation.length} elements, one per value point, in order.`;
 
   let userContent = "";
   if (companyContext) {
@@ -122,7 +145,7 @@ The array must have exactly ${valuePointsList.length} elements, one per value po
   userContent += `## Call Transcript\n${transcript}\n\n`;
   userContent += `## Value Points to Evaluate\n${vpSection}`;
 
-  console.log(`[OpenAI] Evaluating ${valuePointsList.length} value points against transcript`);
+  console.log(`[OpenAI] Evaluating ${needsEvaluation.length} value points against transcript (${alwaysSurfaced.length} always-surfaced, skipped)`);
 
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
@@ -144,8 +167,8 @@ The array must have exactly ${valuePointsList.length} elements, one per value po
     evaluations: { index: number; triggered: boolean; evidence: string; reasoning: string }[];
   };
 
-  // Map the structured results back to full ValuePointEvaluation objects
-  const evaluations: ValuePointEvaluation[] = valuePointsList.map((vp, i) => {
+  // Map the AI results back to full ValuePointEvaluation objects
+  const aiEvaluations: ValuePointEvaluation[] = needsEvaluation.map((vp, i) => {
     const evalResult = parsed.evaluations.find((e) => e.index === i) || {
       triggered: false,
       evidence: "",
@@ -162,8 +185,11 @@ The array must have exactly ${valuePointsList.length} elements, one per value po
     };
   });
 
+  // Merge always-surfaced and AI-evaluated results
+  const evaluations = [...alwaysSurfacedEvaluations, ...aiEvaluations];
+
   const triggeredCount = evaluations.filter((e) => e.triggered).length;
-  console.log(`[OpenAI] Value point evaluation complete: ${triggeredCount}/${evaluations.length} triggered`);
+  console.log(`[OpenAI] Value point evaluation complete: ${triggeredCount}/${evaluations.length} triggered (${alwaysSurfaced.length} always-surfaced)`);
 
   return evaluations;
 }

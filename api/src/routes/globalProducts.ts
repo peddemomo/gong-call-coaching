@@ -13,6 +13,7 @@ const valuePointSchema = z.object({
   listen_for: z.string(),
   insight_text: z.string(),
   link: z.string().optional(),
+  always_surface: z.boolean().optional().default(false),
 });
 
 const createProductSchema = z.object({
@@ -40,7 +41,7 @@ router.get("/", async (_req: Request, res: Response) => {
     const productsWithPoints = await Promise.all(
       products.map(async (p: { id: string }) => {
         const vpResult = await pool.query(
-          `SELECT id, product_id, listen_for, insight_text, link, sort_order, created_at
+          `SELECT id, product_id, listen_for, insight_text, link, always_surface, sort_order, created_at
            FROM public.product_value_points
            WHERE product_id = $1
            ORDER BY sort_order ASC, created_at ASC`,
@@ -105,7 +106,7 @@ router.post("/", async (req: Request, res: Response) => {
     const { title, description, value_points } = parsed.data;
 
     const validValuePoints = (value_points ?? []).filter(
-      (vp: { listen_for: string; insight_text: string; link?: string }) =>
+      (vp: { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }) =>
         vp.listen_for?.trim().length > 0 && vp.insight_text?.trim().length > 0
     );
 
@@ -124,16 +125,16 @@ router.post("/", async (req: Request, res: Response) => {
       for (let i = 0; i < validValuePoints.length; i++) {
         const vp = validValuePoints[i];
         await client.query(
-          `INSERT INTO public.product_value_points (product_id, listen_for, insight_text, link, sort_order, created_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())`,
-          [product.id, vp.listen_for, vp.insight_text, vp.link || null, i]
+          `INSERT INTO public.product_value_points (product_id, listen_for, insight_text, link, always_surface, sort_order, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          [product.id, vp.listen_for, vp.insight_text, vp.link || null, vp.always_surface || false, i]
         );
       }
 
       await client.query("COMMIT");
 
       const vpResult = await client.query(
-        `SELECT id, product_id, listen_for, insight_text, link, sort_order, created_at
+        `SELECT id, product_id, listen_for, insight_text, link, always_surface, sort_order, created_at
          FROM public.product_value_points
          WHERE product_id = $1
          ORDER BY sort_order ASC, created_at ASC`,
@@ -201,16 +202,16 @@ router.patch("/:productId", async (req: Request, res: Response) => {
 
       if (value_points !== undefined) {
         const validValuePoints = value_points.filter(
-          (vp: { listen_for: string; insight_text: string; link?: string }) =>
+          (vp: { listen_for: string; insight_text: string; link?: string; always_surface?: boolean }) =>
             vp.listen_for?.trim().length > 0 && vp.insight_text?.trim().length > 0
         );
         await client.query("DELETE FROM public.product_value_points WHERE product_id = $1", [productId]);
         for (let i = 0; i < validValuePoints.length; i++) {
           const vp = validValuePoints[i];
           await client.query(
-            `INSERT INTO public.product_value_points (product_id, listen_for, insight_text, link, sort_order, created_at)
-             VALUES ($1, $2, $3, $4, $5, NOW())`,
-            [productId, vp.listen_for, vp.insight_text, vp.link || null, i]
+            `INSERT INTO public.product_value_points (product_id, listen_for, insight_text, link, always_surface, sort_order, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            [productId, vp.listen_for, vp.insight_text, vp.link || null, vp.always_surface || false, i]
           );
         }
       }
@@ -222,7 +223,7 @@ router.patch("/:productId", async (req: Request, res: Response) => {
         [productId]
       );
       const vpResult = await client.query(
-        `SELECT id, product_id, listen_for, insight_text, link, sort_order, created_at
+        `SELECT id, product_id, listen_for, insight_text, link, always_surface, sort_order, created_at
          FROM public.product_value_points
          WHERE product_id = $1
          ORDER BY sort_order ASC, created_at ASC`,

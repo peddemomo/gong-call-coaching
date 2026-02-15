@@ -20,6 +20,7 @@
     <include file="migrations/012-value-point-link.xml"/>
     <include file="migrations/013-global-products.xml"/>
     <include file="migrations/014-email-logs-evaluations.xml"/>
+    <include file="migrations/015-value-point-always-surface.xml"/>
 
 </databaseChangeLog>
 
