@@ -234,8 +234,7 @@ export async function generateCoachingFeedback(
         byProduct.set(ev.productTitle, existing);
       }
 
-      // Take at most 3 products
-      const productEntries = Array.from(byProduct.entries()).slice(0, 3);
+      const productEntries = Array.from(byProduct.entries());
 
       productSection = "\n\n## Triggered Value Points (with evidence from the call)\n\n";
       for (const [productTitle, vps] of productEntries) {
@@ -295,7 +294,7 @@ For each value point:
 
 A single product can have multiple triggered value points — include a separate bullet for EACH one under that product's heading. Only include a product heading if at least one of its value points triggered. If none triggered, omit that product entirely.
 
-IMPORTANT: Include a MAXIMUM of 3 products. If more than 3 have triggered value points, select the 3 most relevant to the call and omit the rest.`;
+Include all products that have triggered value points.`;
   }
 
   // System message: prescribes exact output structure

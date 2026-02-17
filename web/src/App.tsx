@@ -324,12 +324,13 @@ function AppContent() {
 
   // Test Call state
   const [testCallId, setTestCallId] = useState("");
+  const [testEmail, setTestEmail] = useState("");
   const [testCallMessage, setTestCallMessage] = useState<{ type: "success" | "error" | "skipped"; text: string; details?: string } | null>(null);
 
   // Test Call mutation
   const testCallMutation = useMutation({
-    mutationFn: ({ strategyId, gongCallId }: { strategyId: string; gongCallId: string }) =>
-      runTestCall(strategyId, gongCallId),
+    mutationFn: ({ strategyId, gongCallId, testEmail }: { strategyId: string; gongCallId: string; testEmail?: string }) =>
+      runTestCall(strategyId, gongCallId, testEmail),
     onSuccess: (response: TestCallResponse) => {
       queryClient.invalidateQueries({ queryKey: ["emailLogs", selectedStrategyId] });
       if (response.skipped) {
@@ -341,7 +342,9 @@ function AppContent() {
       } else {
         setTestCallMessage({
           type: "success",
-          text: "Test call completed! Email generated (not sent).",
+          text: response.status === "sent"
+            ? "Test call completed! Email sent."
+            : "Test call completed! Email generated (not sent).",
           details: response.ae_email ? `AE: ${response.ae_email}` : undefined,
         });
       }
@@ -361,7 +364,11 @@ function AppContent() {
     e.preventDefault();
     if (!selectedStrategyId || !testCallId.trim()) return;
     setTestCallMessage(null);
-    testCallMutation.mutate({ strategyId: selectedStrategyId, gongCallId: testCallId.trim() });
+    testCallMutation.mutate({
+      strategyId: selectedStrategyId,
+      gongCallId: testCallId.trim(),
+      testEmail: testEmail.trim() || undefined,
+    });
   };
 
   const handleSubmitAE = (e: React.FormEvent) => {
@@ -1776,10 +1783,7 @@ function AppContent() {
             }}
           >
             <h2 style={{ marginTop: 0, marginBottom: "1rem" }}>
-              Test Call{" "}
-              <span style={{ fontWeight: 400, color: "#666", fontSize: "0.875rem" }}>
-                (dry-run, never sends email)
-              </span>
+              Test Call
             </h2>
             <form onSubmit={handleTestCall} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", flexWrap: "wrap" }}>
               <div style={{ flex: "1", minWidth: "200px", maxWidth: "400px" }}>
@@ -1788,6 +1792,23 @@ function AppContent() {
                   placeholder="Enter Gong Call ID"
                   value={testCallId}
                   onChange={(e) => setTestCallId(e.target.value)}
+                  disabled={testCallMutation.isPending}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    fontSize: "1rem",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div style={{ flex: "1", minWidth: "200px", maxWidth: "300px" }}>
+                <input
+                  type="email"
+                  placeholder="Send test email to (optional)"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
                   disabled={testCallMutation.isPending}
                   style={{
                     width: "100%",
@@ -1867,7 +1888,7 @@ function AppContent() {
             )}
             <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.8rem", color: "#666" }}>
               Runs the full pipeline: fetch from Gong → find AE → classify → generate output.
-              Test runs can be repeated any number of times for prompt iteration.
+              If a test email is provided, the coaching email will be sent there instead of to the AE.
             </p>
           </section>
 

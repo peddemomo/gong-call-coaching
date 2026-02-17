@@ -48,6 +48,7 @@ const moveAESchema = z.object({
 
 const testCallSchema = z.object({
   gong_call_id: z.string().min(1, "Gong call ID is required"),
+  test_email: z.string().email("Invalid test email address").optional(),
 });
 
 // GET /strategies - List all strategies
@@ -581,7 +582,7 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
       return;
     }
 
-    const { gong_call_id } = parsed.data;
+    const { gong_call_id, test_email } = parsed.data;
 
     // Verify strategy exists
     const strategyCheck = await pool.query(
@@ -697,6 +698,7 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
         skipped: true,
         skip_reason: decision.reason,
         is_test: true,
+        test_email_override: test_email,
       });
 
       res.status(200).json({
@@ -709,7 +711,7 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
       return;
     }
 
-    // Step 7: Generate output (test mode - never sends)
+    // Step 7: Generate output and send to test email if provided
     const emailLog = await generateCoachingEmail({
       ae_email,
       gong_call_id,
@@ -717,6 +719,7 @@ router.post("/:strategyId/test-call", async (req: Request, res: Response) => {
       context,
       decision,
       is_test: true,
+      test_email_override: test_email,
     });
 
     res.status(201).json(emailLog);

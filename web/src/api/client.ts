@@ -467,6 +467,7 @@ export interface GenerateEmailRequest {
 
 export interface TestCallRequest {
   gong_call_id: string;
+  test_email?: string;
 }
 
 export interface TestCallResponse {
@@ -510,14 +511,19 @@ export const generateEmailByStrategy = async (
 
 export const runTestCall = async (
   strategyId: string,
-  gongCallId: string
+  gongCallId: string,
+  testEmail?: string
 ): Promise<TestCallResponse> => {
+  const payload: TestCallRequest = { gong_call_id: gongCallId };
+  if (testEmail) {
+    payload.test_email = testEmail;
+  }
   const response = await authFetch(`${API_BASE_URL}/strategies/${strategyId}/test-call`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ gong_call_id: gongCallId }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {

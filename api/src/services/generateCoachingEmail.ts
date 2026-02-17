@@ -25,6 +25,7 @@ export interface GenerateEmailInput {
   skipped?: boolean;
   skip_reason?: string;
   is_test?: boolean;
+  test_email_override?: string;
 }
 
 export interface EmailLogRow {
@@ -54,15 +55,16 @@ export class DuplicateEmailError extends Error {
 export async function generateCoachingEmail(
   input: GenerateEmailInput
 ): Promise<EmailLogRow> {
-  const { 
-    ae_email, 
-    gong_call_id, 
-    strategy_id = DEFAULT_STRATEGY_ID, 
+  const {
+    ae_email,
+    gong_call_id,
+    strategy_id = DEFAULT_STRATEGY_ID,
     context,
     decision,
     skipped,
     skip_reason,
     is_test = false,
+    test_email_override,
   } = input;
 
   // Handle skipped calls
@@ -218,12 +220,13 @@ export async function generateCoachingEmail(
 
     const emailLog = result.rows[0];
 
-    // Send the email (including test runs - they go to the hardcoded test email anyway)
+    // Send the email: use test_email_override for test runs, otherwise send to the AE
+    const recipientEmail = test_email_override || ae_email;
     if (body) {
       try {
         const callTitle = context?.call_title || "Gong call";
         const emailResult = await sendCoachingEmail({
-          recipientEmail: ae_email,
+          recipientEmail,
           callTitle,
           coachingBody: body,
           subject,
@@ -236,7 +239,7 @@ export async function generateCoachingEmail(
             [emailLog.id]
           );
           emailLog.status = "sent";
-          console.log(`[Email] Successfully sent for call ${gong_call_id} to test email`);
+          console.log(`[Email] Successfully sent for call ${gong_call_id} to ${recipientEmail}`);
         } else {
           // Update status to 'failed' with error message
           await pool.query(
