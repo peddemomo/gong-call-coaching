@@ -2,17 +2,13 @@
  * Email Sending Service
  *
  * Sends coaching emails using Resend and a formatted HTML template.
- * Currently hardcoded to send to test email - DO NOT send to actual recipients yet.
  */
 
 import { Resend } from "resend";
 
-// IMPORTANT: Hardcoded test email - DO NOT send to actual recipients yet
-const TEST_EMAIL_RECIPIENT = "ljpeddemo@gmail.com";
-
 // Resend configuration
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || "Coaching <onboarding@resend.dev>";
+const EMAIL_FROM = process.env.EMAIL_FROM || "Luke Peddemors <luke@pmmagents.com>";
 
 let resendClient: Resend | null = null;
 
@@ -31,7 +27,7 @@ function getResendClient(): Resend {
 }
 
 export interface SendEmailInput {
-  recipientEmail: string; // The actual recipient (stored for reference, but NOT used yet)
+  recipientEmail: string;
   callTitle: string;
   coachingBody: string; // The raw coaching text from OpenAI
   subject: string;
@@ -139,10 +135,7 @@ function buildEmailHtml(callTitle: string, coachingHtml: string): string {
 }
 
 /**
- * Send a coaching email
- *
- * IMPORTANT: Currently sends to TEST_EMAIL_RECIPIENT only.
- * The actual recipientEmail is stored for reference but NOT used.
+ * Send a coaching email to the recipient from the AE list.
  */
 export async function sendCoachingEmail(
   input: SendEmailInput
@@ -158,14 +151,11 @@ export async function sendCoachingEmail(
     // Build full email HTML
     const htmlContent = buildEmailHtml(callTitle, coachingHtml);
 
-    console.log(
-      `[Email] Sending to TEST email (${TEST_EMAIL_RECIPIENT}) - actual recipient would be: ${recipientEmail}`
-    );
+    console.log(`[Email] Sending coaching email to: ${recipientEmail}`);
 
-    // IMPORTANT: Send to test email, NOT the actual recipient
     const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
-      to: TEST_EMAIL_RECIPIENT, // <-- HARDCODED TEST EMAIL
+      to: recipientEmail,
       subject: subject,
       html: htmlContent,
     });
@@ -175,7 +165,7 @@ export async function sendCoachingEmail(
       return {
         success: false,
         error: error.message,
-        sentTo: TEST_EMAIL_RECIPIENT,
+        sentTo: recipientEmail,
       };
     }
 
@@ -184,14 +174,14 @@ export async function sendCoachingEmail(
     return {
       success: true,
       messageId: data?.id,
-      sentTo: TEST_EMAIL_RECIPIENT,
+      sentTo: recipientEmail,
     };
   } catch (error) {
     console.error("[Email] Failed to send:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
-      sentTo: TEST_EMAIL_RECIPIENT,
+      sentTo: recipientEmail,
     };
   }
 }
