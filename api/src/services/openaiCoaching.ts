@@ -346,32 +346,7 @@ Analyze this call and generate a concise product intel email following the struc
     throw new Error("OpenAI returned an empty response");
   }
 
-  // Generate a subject line based on the call, prospect, and email content
-  const prospectNames = external_speaker_names?.join(", ") || "";
-  const prospectEmails = external_emails?.join(", ") || "";
-
-  const subjectCompletion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { 
-        role: "system", 
-        content: `Generate a short email subject line (max 50 chars) for a post-call product intel email. The subject should reference the prospect's company or name and hint at what resource is relevant. Do NOT use the words "coaching" or "feedback." Do NOT use quotation marks. Just return the subject line text, nothing else.
-
-Examples of good subject lines:
-- Acme call — cloud migration resources
-- Follow-up intel: Sarah's compliance concerns
-- For your Initech call — 2 relevant case studies` 
-      },
-      { 
-        role: "user", 
-        content: `Call title: ${call_title || "Sales Call"}\nProspect names: ${prospectNames || "Unknown"}\nProspect emails: ${prospectEmails || "Unknown"}\n\nEmail body summary:\n${responseContent.substring(0, 500)}\n\nGenerate a subject line for this post-call intel email.` 
-      },
-    ],
-    temperature: 0.5,
-    max_tokens: 50,
-  });
-
-  const subject = subjectCompletion.choices[0]?.message?.content?.trim().replace(/^["']|["']$/g, "") || "Post-call intel for your review";
+  const subject = `${call_title || "Sales Call"} — product recommendations`;
 
   return {
     subject,
