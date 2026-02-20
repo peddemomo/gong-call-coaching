@@ -1888,7 +1888,7 @@ function AppContent() {
             )}
             <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.8rem", color: "#666" }}>
               Runs the full pipeline: fetch from Gong → find AE → classify → generate output.
-              If a test email is provided, the coaching email will be sent there instead of to the AE.
+              If a test email is provided, the coaching email will be sent there. If left blank, the email will only be logged — it won't be sent to anyone.
             </p>
           </section>
 

@@ -261,7 +261,9 @@ The paragraph should weave together three things naturally:
 
 CRITICAL: When describing our product's capabilities, use ONLY what is stated in the INSIGHT text. Do NOT hallucinate or infer additional product features or functionality. It is better to be vague than to be wrong about what our product does.
 
-Each bullet should be 2-4 sentences as a single flowing paragraph. Use specifics from the prospect's business and the evidence wherever possible.
+IMPORTANT: The INSIGHT text is your source material — use its full depth. If the INSIGHT includes multiple use cases or examples, include them. If the INSIGHT describes specific capabilities in detail, preserve that detail. If the INSIGHT mentions a specific resource or "Learn More" context, weave that in naturally (e.g. "you can explore how this works for [specific scenario] in the link below"). Do NOT compress or summarize away the substance of the INSIGHT — the people who wrote these insights were deliberate about what they included.
+
+Each bullet should be as long as the INSIGHT warrants — typically a short paragraph of 3-6 sentences, but longer if the INSIGHT is detailed. Use specifics from the prospect's business and the evidence wherever possible.
 
 Include all listed products and value points. Do not add or remove any.`;
     }
@@ -298,7 +300,7 @@ Include all products that have triggered value points.`;
   }
 
   // System message: prescribes exact output structure
-  const systemMessage = `You are a product intelligence assistant that helps account executives follow up on sales calls with the right resources. Your tone is helpful and brief — like a knowledgeable colleague pinging them after a call with a useful tip, not a manager reviewing their performance.
+  const systemMessage = `You are a product intelligence assistant that helps account executives follow up on sales calls with the right resources. Your tone is helpful and substantive — like a knowledgeable colleague pinging them after a call with genuinely useful detail, not a manager reviewing their performance.
 
 When referring to the prospect, use their first name (from "External Participant Names" in the call metadata). This makes the email feel personal and relevant.
 
@@ -312,7 +314,7 @@ ${productInstructions}
 Do not add any sections beyond the call recap and the product sections.
 ${productSection}
 
-IMPORTANT: You MUST include every single value point listed above in the email. Do not skip any. Each value point must appear as a bullet under its product heading. If there are many value points, keep each bullet concise (2-3 sentences) to fit them all. Missing a value point is worse than being brief.`;
+IMPORTANT: You MUST include every single value point listed above in the email. Do not skip any. Each value point must appear as a bullet under its product heading. Give each value point the space it deserves — if the INSIGHT is detailed, the bullet should be detailed too.`;
 
   // User message: call context + transcript
   let userContext = "";
@@ -337,7 +339,7 @@ Analyze this call and generate a concise product intel email following the struc
       { role: "user", content: userMessage },
     ],
     temperature: 0.4,
-    max_tokens: 2000,
+    max_tokens: 4000,
   });
 
   const responseContent = completion.choices[0]?.message?.content;

@@ -220,9 +220,10 @@ export async function generateCoachingEmail(
 
     const emailLog = result.rows[0];
 
-    // Send the email: use test_email_override for test runs, otherwise send to the AE
-    const recipientEmail = test_email_override || ae_email;
-    if (body) {
+    // Send the email: use test_email_override for test runs, otherwise send to the AE.
+    // If it's a test run with no override, skip sending — don't accidentally email the real AE.
+    const recipientEmail = is_test ? test_email_override : ae_email;
+    if (body && recipientEmail) {
       try {
         const callTitle = context?.call_title || "Gong call";
         const emailResult = await sendCoachingEmail({
