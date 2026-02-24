@@ -236,9 +236,23 @@ export async function generateCoachingFeedback(
 
       const productEntries = Array.from(byProduct.entries());
 
+      // Build a lookup for product descriptions from the input
+      const productDescriptionMap = new Map<string, string>();
+      if (product_value_points) {
+        for (const p of product_value_points) {
+          if (p.productDescription) {
+            productDescriptionMap.set(p.productTitle, p.productDescription);
+          }
+        }
+      }
+
       productSection = "\n\n## Triggered Value Points (with evidence from the call)\n\n";
       for (const [productTitle, vps] of productEntries) {
         productSection += `### ${productTitle}\n`;
+        const desc = productDescriptionMap.get(productTitle);
+        if (desc) {
+          productSection += `DESCRIPTION: ${desc}\n\n`;
+        }
         for (const vp of vps) {
           productSection += `- EVIDENCE: ${vp.evidence}\n  INSIGHT: ${vp.insight_text}\n`;
           if (vp.link) {
@@ -249,21 +263,25 @@ export async function generateCoachingFeedback(
       }
 
       productInstructions = `## Resources for your follow-up
-Below are value points that have already been identified as relevant to this call. Each has EVIDENCE (a quote or fact from the call/company research that triggered it) and an INSIGHT (what our product does).
+Below are products with value points that are relevant to this call. Each product may have a DESCRIPTION that explains what it does, its current status, and any important context (e.g. beta, limitations, positioning). Each value point has EVIDENCE (from the call or company research) and an INSIGHT (the angle to emphasize).
+
+Your job is to tell a compelling, specific story for each value point — paint a picture of how this product capability could work in the prospect's world. Do NOT just restate the INSIGHT verbatim. Instead, use the INSIGHT as a starting direction and the product DESCRIPTION as your understanding of what the product actually does, then creatively illustrate how it applies to the prospect's specific situation, challenges, and goals.
 
 For each value point, write a bullet point under its product heading as ONE smooth paragraph — do NOT break it into labeled sections like "The connection:", "The problem:", "How this helps:". Just write it as natural, flowing prose.
 
-The paragraph should weave together three things naturally:
+The paragraph should:
   - Start by grounding in the evidence. Use the EVIDENCE directly — quote or closely paraphrase what was said on the call or what's known about the prospect's business. Be specific (e.g. "Mike mentioned needing to prove device usage to payers" not "the topic of reimbursement came up").
   - Connect it to the prospect's challenge — what's at stake, what's hard about this for them.
-  - Then explain how our product helps, using ONLY what is stated in the INSIGHT text. You may rephrase the INSIGHT to fit the flow, but do NOT invent product features, capabilities, or details beyond what the INSIGHT says.
+  - Then tell the story of how our product helps in their specific scenario. Use the INSIGHT as the angle to emphasize and the DESCRIPTION to understand what the product can do. Be creative — imagine how this feature would play out day-to-day for this prospect, what it would change for them, what outcomes it would enable. Make it concrete and vivid.
   - If a value point has a LINK, include "Learn More: <url>" at the end of the paragraph.
 
-CRITICAL: When describing our product's capabilities, use ONLY what is stated in the INSIGHT text. Do NOT hallucinate or infer additional product features or functionality. It is better to be vague than to be wrong about what our product does.
+GUARDRAILS — the product DESCRIPTION is your boundary:
+  - You may creatively illustrate and adapt, but stay within what the DESCRIPTION says the product can do. Do NOT invent capabilities that aren't covered by the DESCRIPTION.
+  - If the DESCRIPTION mentions the product is in beta, early access, or has specific limitations, weave that context in naturally (e.g. "we're currently piloting this with a few teams" or "this is something we're rolling out now").
+  - If there is no DESCRIPTION for a product, stick closely to what the INSIGHT says — do not speculate about broader capabilities.
+  - It is always better to be vague than to be wrong about what our product does.
 
-IMPORTANT: The INSIGHT text is your source material — use its full depth. If the INSIGHT includes multiple use cases or examples, include them. If the INSIGHT describes specific capabilities in detail, preserve that detail. If the INSIGHT mentions a specific resource or "Learn More" context, weave that in naturally (e.g. "you can explore how this works for [specific scenario] in the link below"). Do NOT compress or summarize away the substance of the INSIGHT — the people who wrote these insights were deliberate about what they included.
-
-Each bullet should be as long as the INSIGHT warrants — typically a short paragraph of 3-6 sentences, but longer if the INSIGHT is detailed. Use specifics from the prospect's business and the evidence wherever possible.
+Each bullet should be a short paragraph of 3-6 sentences. Use specifics from the prospect's business and the evidence wherever possible.
 
 Include all listed products and value points. Do not add or remove any.`;
     }
