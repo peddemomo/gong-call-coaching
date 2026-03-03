@@ -536,11 +536,6 @@ function AppContent() {
 
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif", maxWidth: "900px", margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ margin: 0 }}>Gong Call Coaching</h1>
-      </div>
-
       {/* Tab Bar */}
       <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e9ecef", marginBottom: "1.5rem" }}>
         {(["strategies", "products"] as const).map((tab) => (
